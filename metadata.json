@@ -1,0 +1,5 @@
+{
+  "name": "Raph Bet: Soccer Betting MVP",
+  "description": "A soccer betting simulation application inspired by FanDuel. Users can place bets on global soccer leagues using virtual credits, manage their virtual wallet, and track live matches and standings.",
+  "requestFramePermissions": []
+}
