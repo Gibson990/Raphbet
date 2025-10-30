@@ -22,7 +22,7 @@ const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction })
         </div>
         <div>
             <p className="font-semibold text-sm">{transaction.description}</p>
-            <p className="text-xs text-gray-500 dark:text-gray-400">{new Date(transaction.date).toLocaleString()}</p>
+            <p className="text-xs text-gray-500 dark:text-white/70">{new Date(transaction.date).toLocaleString()}</p>
         </div>
       </div>
       <p className={`font-bold text-sm ${isCredit ? 'text-green-500' : 'text-red-500'}`}>
@@ -76,8 +76,8 @@ const WalletScreen: React.FC<WalletScreenProps> = ({ wallet, addToast }) => {
           </div>
         </div>
       </div>
-      {isTopUpOpen && <TopUpModal onClose={() => setTopUpOpen(false)} onTopUp={topUpWallet} addToast={addToast} />}
-      {isWithdrawOpen && <WithdrawModal onClose={() => setWithdrawOpen(false)} onWithdraw={withdrawFromWallet} addToast={addToast} balance={balance} />}
+      <TopUpModal isOpen={isTopUpOpen} onClose={() => setTopUpOpen(false)} onTopUp={topUpWallet} addToast={addToast} />
+      <WithdrawModal isOpen={isWithdrawOpen} onClose={() => setWithdrawOpen(false)} onWithdraw={withdrawFromWallet} addToast={addToast} balance={balance} />
     </>
   );
 };

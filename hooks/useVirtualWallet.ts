@@ -18,6 +18,21 @@ export const useVirtualWallet = (initialBalance: number) => {
     setTransactions(prev => [newTransaction, ...prev]);
   }, []);
 
+  const topUpWallet = useCallback((amount: number, method: string) => {
+    try {
+      if (amount <= 0) {
+        return { success: false, message: 'Invalid amount' };
+      }
+      
+      setBalance(prev => prev + amount);
+      addTransaction('Top-up', amount, `Top up via ${method}`);
+      
+      return { success: true, message: `Successfully topped up ${amount.toLocaleString()} Tsh` };
+    } catch (error) {
+      return { success: false, message: 'Failed to process top up' };
+    }
+  }, [addTransaction]);
+
   const addToBetSlip = useCallback((selection: BetSelection) => {
     setBetSlip((prev) => {
       const existingBet = prev.find(b => b.selection.matchId === selection.matchId);
@@ -82,12 +97,6 @@ export const useVirtualWallet = (initialBalance: number) => {
     clearBetSlip();
     return { success: true, message: `Successfully placed ${newBets.length} bet(s)!` };
   }, [balance, betSlip, clearBetSlip, simulateBetSettlement, addTransaction]);
-
-  const topUpWallet = useCallback((amount: number, method: string) => {
-    setBalance(prev => prev + amount);
-    addTransaction('Top-up', amount, `Top up via ${method}`);
-    return { success: true, message: `Successfully added ${amount.toLocaleString('en-US')} Tsh!` };
-  }, [addTransaction]);
 
   const withdrawFromWallet = useCallback((amount: number, method: string) => {
     if (amount <= 0) return { success: false, message: 'Withdrawal amount must be positive.' };

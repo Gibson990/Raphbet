@@ -22,7 +22,7 @@ const mockUser: User = {
 };
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
-  const [user, setUser] = useState<User | null>(null);
+  const [user, setUser] = useState<User | null>(mockUser); // Start with a logged-in user for development
 
   const login = useCallback((method: 'google' | 'phone', identifier: string) => {
     // Simulate a login

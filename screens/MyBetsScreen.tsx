@@ -36,7 +36,7 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet }> = ({ bet }) => {
       <div className="flex justify-between items-start">
         <div>
           <p className="font-bold">{bet.selection.marketLabel} @ {bet.selection.odds.toFixed(2)}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{bet.selection.matchDescription}</p>
+          <p className="text-sm text-gray-500 dark:text-white/70">{bet.selection.matchDescription}</p>
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             Placed: {new Date(bet.placedDate).toLocaleString()}
           </p>
@@ -45,7 +45,7 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet }> = ({ bet }) => {
       </div>
       <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between items-center text-sm">
         <div>
-          <span className="text-gray-500 dark:text-gray-400">Wager: </span>
+          <span className="text-gray-500 dark:text-white/70">Wager: </span>
           <span className="font-semibold">{bet.wager.toLocaleString('en-US')} Tsh</span>
         </div>
         <div>

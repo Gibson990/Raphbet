@@ -2,7 +2,7 @@ import React from 'react';
 
 const TermsContent: React.FC = () => {
     return (
-        <div className="text-sm text-gray-600 dark:text-gray-300 space-y-4 max-h-[60vh] overflow-y-auto pr-2">
+        <div className="text-sm text-gray-600 dark:text-gray-300 space-y-6 max-h-[60vh] overflow-y-auto p-4">
             <h3 className="font-bold text-base text-neutral-dark dark:text-white">1. Introduction</h3>
             <p>Welcome to Raph Bet. These terms and conditions outline the rules and regulations for the use of Raph Bet's services, in accordance with the Gaming Act, Cap. 41 of the laws of Tanzania, and as regulated by the Gaming Board of Tanzania (GBT).</p>
             

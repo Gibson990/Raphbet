@@ -43,7 +43,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isDarkMode, toggleDarkMod
   return (
     <>
       <div className="py-4">
-        <h1 className="text-2xl sm:text-3xl font-bold mb-6">Profile</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-6 dark:text-white">Profile</h1>
 
         <div className="flex flex-col items-center mb-8">
           <div className="relative">
@@ -56,7 +56,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isDarkMode, toggleDarkMod
             {isEditing ? (
               <input type="text" value={name} onChange={(e) => setName(e.target.value)} className="text-xl font-semibold text-center bg-transparent border-b-2 border-primary focus:outline-none"/>
             ) : (
-              <h2 className="text-xl font-semibold">{user.name}</h2>
+              <h2 className="text-xl font-semibold dark:text-white">{user.name}</h2>
             )}
             <button onClick={() => setIsEditing(!isEditing)} className="text-gray-500 hover:text-primary">
               <PencilIcon className="h-5 w-5"/>
@@ -68,16 +68,16 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isDarkMode, toggleDarkMod
                   <button onClick={handleCancel} className="text-sm bg-gray-500 text-white px-3 py-1 rounded-md">Cancel</button>
               </div>
           )}
-          <p className="text-gray-500 dark:text-gray-400">{user.email || user.phone}</p>
+          <p className="text-gray-500 dark:text-white/70">{user.email || user.phone}</p>
         </div>
 
         <div className="bg-white dark:bg-neutral-dark-gray rounded-xl shadow-lg p-4 space-y-2">
-          <h3 className="text-lg font-bold mb-2 px-2">Settings</h3>
+          <h3 className="text-lg font-bold mb-2 px-2 dark:text-white">Settings</h3>
           
           <div className="flex justify-between items-center py-3 px-2 border-b border-gray-200 dark:border-gray-700">
              <div className="flex items-center space-x-3">
               {user.isVerified ? <CheckCircleIcon className="h-6 w-6 text-green-500" /> : <ShieldExclamationIcon className="h-6 w-6 text-yellow-500" />}
-              <span className="font-semibold">Account Status</span>
+              <span className="font-semibold dark:text-white">Account Status</span>
             </div>
             {user.isVerified ? (
               <span className="px-3 py-1 text-sm font-semibold rounded-full bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300">Verified</span>
@@ -89,7 +89,7 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isDarkMode, toggleDarkMod
           <div className="flex justify-between items-center py-3 px-2 border-b border-gray-200 dark:border-gray-700">
             <div className="flex items-center space-x-3">
               {isDarkMode ? <MoonIcon className="h-6 w-6 text-accent" /> : <SunIcon className="h-6 w-6 text-accent" />}
-              <span className="font-semibold">Dark Mode</span>
+              <span className="font-semibold dark:text-white">Dark Mode</span>
             </div>
             <button
               onClick={toggleDarkMode}
@@ -116,11 +116,13 @@ const ProfileScreen: React.FC<ProfileScreenProps> = ({ isDarkMode, toggleDarkMod
 
         </div>
       </div>
-      {isTermsOpen && (
-          <Modal title="Terms & Conditions" onClose={() => setIsTermsOpen(false)}>
-              <TermsContent />
-          </Modal>
-      )}
+      <Modal 
+          isOpen={isTermsOpen} 
+          title="Terms & Conditions" 
+          onClose={() => setIsTermsOpen(false)}
+      >
+          <TermsContent />
+      </Modal>
     </>
   );
 };

@@ -3,7 +3,7 @@ import { LeagueSelector } from '../components/LeagueSelector';
 import { MatchList } from '../components/MatchList';
 import { StandingsTable } from '../components/StandingsTable';
 import { BetSlip } from '../components/BetSlip';
-import { Carousel } from '../components/common/Carousel';
+import { PromoSection } from '../components/PromoSection';
 import { SoccerBallIcon } from '../components/icons';
 import { mockLeagues, mockMatches, mockStandings } from '../services/api';
 import type { League, Match, BetSelection } from '../types';
@@ -30,6 +30,27 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
       setIsBetSlipOpen(true);
     }
   }, [betSlip.length]);
+
+  const promos = [
+    {
+      id: '1',
+      imageUrl: '/assets/promo/promo1.png',
+      altText: 'We Form Winners - Match Day Live Streaming',
+      link: '/live'
+    },
+    {
+      id: '2',
+      imageUrl: '/assets/promo/promo2.png',
+      altText: 'Sport Betting - Multiple Sports Available',
+      link: '/sports'
+    },
+    {
+      id: '3',
+      imageUrl: '/assets/promo/promo3.png',
+      altText: 'A Revolution in Online Betting - Fast & Secure',
+      link: '/about'
+    }
+  ];
 
   const selectedLeague = useMemo(() => leagues.find(l => l.id === selectedLeagueId), [leagues, selectedLeagueId]);
   const matchesForLeague = useMemo(() => mockMatches[selectedLeagueId] || [], [selectedLeagueId]);
@@ -64,26 +85,20 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
     }
   }
   
-  const promoImages = [
-    'https://www.the-sun.com/wp-content/uploads/sites/6/2023/08/espn-bet-official-launch-date-new-788079712-1.png',
-    'https://www.legalsportsreport.com/wp-content/uploads/2019/09/FanDuel-Sportsbook-PA-promo.jpg',
-    'https://www.sportsbusinessjournal.com/-/media/Images/Daily/2023/11/14/ESPN-Bet.ashx',
-  ];
-
   return (
-    <div className="py-4 space-y-6">
-      <Carousel images={promoImages} />
+    <div className="py-6 space-y-8">
+      <PromoSection promos={promos} />
 
-      <div className="bg-neutral-light dark:bg-neutral-dark-gray rounded-xl shadow-lg p-2 sm:p-4">
-        <div className="flex items-center space-x-4 mb-4 pb-4">
+      <div className="bg-white dark:bg-neutral-dark-gray rounded-2xl shadow-xl p-4 sm:p-6">
+        <div className="flex items-center space-x-4 mb-6 pb-6 border-b-2 border-gray-100 dark:border-gray-700">
           {selectedLeague ? (
-            <img src={selectedLeague.logo} alt={`${selectedLeague.name} logo`} className="h-10 w-10 sm:h-12 sm:w-12 object-contain" />
+            <img src={selectedLeague.logo} alt={`${selectedLeague.name} logo`} className="h-12 w-12 sm:h-16 sm:w-16 object-contain" />
           ) : (
-            <SoccerBallIcon className="h-12 w-12 text-gray-400" />
+            <SoccerBallIcon className="h-16 w-16 text-gray-400" />
           )}
           <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">{selectedLeague?.name}</h1>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">{selectedLeague?.country}</p>
+            <h1 className="text-3xl sm:text-4xl font-bold dark:text-white">{selectedLeague?.name}</h1>
+            <p className="text-gray-500 dark:text-white/70 text-base">{selectedLeague?.country}</p>
           </div>
         </div>
 
@@ -97,16 +112,16 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
         />
 
         <div className="mt-6">
-          <div className="flex border-b border-gray-200 dark:border-gray-700">
+          <div className="flex border-b-2 border-gray-200 dark:border-gray-700">
             <button
               onClick={() => setActiveTab('matches')}
-              className={`py-2 px-4 font-semibold ${activeTab === 'matches' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}`}
+              className={`py-3 px-6 font-bold text-lg transition-colors duration-300 ${activeTab === 'matches' ? 'text-primary border-b-4 border-primary' : 'text-gray-500 dark:text-gray-400 hover:text-primary'}`}
             >
               Matches
             </button>
             <button
               onClick={() => setActiveTab('standings')}
-              className={`py-2 px-4 font-semibold ${activeTab === 'standings' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}`}
+              className={`py-3 px-6 font-bold text-lg transition-colors duration-300 ${activeTab === 'standings' ? 'text-primary border-b-4 border-primary' : 'text-gray-500 dark:text-gray-400 hover:text-primary'}`}
             >
               Standings
             </button>

@@ -1,7 +1,8 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { Bet } from '../types';
 import { TrashIcon, XIcon, LockIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
+import BetConfirmationModal from './BetConfirmationModal';
 
 interface BetSlipProps {
   bets: Bet[];
@@ -14,14 +15,21 @@ interface BetSlipProps {
 
 export const BetSlip: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange, onPlaceBet, onClear, onClose }) => {
   const { isVerified } = useAuth();
+  const [showConfirmation, setShowConfirmation] = useState(false);
   const totalWager = bets.reduce((sum, bet) => sum + bet.wager, 0);
   const totalPayout = bets.reduce((sum, bet) => sum + bet.wager * bet.selection.odds, 0);
   const isBettingDisabled = !isVerified || bets.length === 0 || totalWager <= 0;
 
+  const handlePlaceBet = () => {
+    if (!isBettingDisabled) {
+      setShowConfirmation(true);
+    }
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-end" onClick={onClose}>
+    <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-end sm:items-center" onClick={onClose}>
       <div 
-        className="bg-neutral-light-gray dark:bg-neutral-dark-gray w-full max-w-lg rounded-t-2xl shadow-lg p-4 flex flex-col max-h-[80vh]"
+        className="bg-neutral-light-gray dark:bg-neutral-dark-gray w-full max-w-lg rounded-t-2xl sm:rounded-2xl shadow-lg p-4 flex flex-col max-h-[90vh] sm:max-h-[80vh] sm:m-4"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 mb-4 flex-shrink-0">
@@ -77,7 +85,7 @@ export const BetSlip: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange,
               ))}
             </div>
 
-            <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2 flex-shrink-0">
+            <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2 flex-shrink-0">
               <div className="flex justify-between text-gray-600 dark:text-gray-300">
                 <span>Total Wager:</span>
                 <span>{totalWager.toLocaleString('en-US')} Tsh</span>
@@ -88,9 +96,9 @@ export const BetSlip: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange,
               </div>
             </div>
 
-            <div className="relative mt-4 flex-shrink-0">
+            <div className="relative mt-4 flex-shrink-0 pb-4 sm:pb-0">
               <button
-                onClick={onPlaceBet}
+                onClick={handlePlaceBet}
                 disabled={isBettingDisabled}
                 className="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
               >
@@ -101,6 +109,16 @@ export const BetSlip: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange,
                 <p className="text-center text-xs text-red-500 mt-2">Please verify your account to place bets.</p>
               )}
             </div>
+
+            <BetConfirmationModal 
+              bets={bets}
+              isOpen={showConfirmation}
+              onClose={() => setShowConfirmation(false)}
+              onConfirm={() => {
+                setShowConfirmation(false);
+                onPlaceBet();
+              }}
+            />
           </>
         )}
       </div>

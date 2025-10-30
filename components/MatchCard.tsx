@@ -42,8 +42,8 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelectOdd }) => {
         {/* Home Team */}
         <div className="flex items-center space-x-3 w-2/5">
           <img src={match.homeTeam.logo} alt={match.homeTeam.name} className="h-8 w-8 object-contain" />
-          <span className="font-semibold text-sm sm:text-base hidden sm:block">{match.homeTeam.name}</span>
-          <span className="font-semibold text-sm sm:text-base sm:hidden">{match.homeTeam.name.substring(0,3).toUpperCase()}</span>
+          <span className="font-semibold text-sm sm:text-base hidden sm:block dark:text-white">{match.homeTeam.name}</span>
+          <span className="font-semibold text-sm sm:text-base sm:hidden dark:text-white">{match.homeTeam.name.substring(0,3).toUpperCase()}</span>
         </div>
         
         {/* Score/Status */}
@@ -58,8 +58,8 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelectOdd }) => {
 
         {/* Away Team */}
         <div className="flex items-center space-x-3 justify-end w-2/5">
-          <span className="font-semibold text-sm sm:text-base hidden sm:block">{match.awayTeam.name}</span>
-          <span className="font-semibold text-sm sm:text-base sm:hidden">{match.awayTeam.name.substring(0,3).toUpperCase()}</span>
+          <span className="font-semibold text-sm sm:text-base hidden sm:block dark:text-white">{match.awayTeam.name}</span>
+          <span className="font-semibold text-sm sm:text-base sm:hidden dark:text-white">{match.awayTeam.name.substring(0,3).toUpperCase()}</span>
           <img src={match.awayTeam.logo} alt={match.awayTeam.name} className="h-8 w-8 object-contain" />
         </div>
       </div>

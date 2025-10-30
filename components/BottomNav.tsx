@@ -1,10 +1,8 @@
 import React from 'react';
-import type { Screen } from '../App';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { HomeIcon, ReceiptIcon, CreditCardIcon, UserCircleIcon } from './icons';
 
 interface BottomNavProps {
-  activeScreen: Screen;
-  setActiveScreen: (screen: Screen) => void;
   betSlipCount: number;
 }
 
@@ -15,7 +13,12 @@ const NavButton: React.FC<{
   onClick: () => void;
   badgeCount?: number;
 }> = ({ label, icon, isActive, onClick, badgeCount = 0 }) => (
-  <button onClick={onClick} className={`flex flex-col items-center justify-center w-full pt-2 pb-1 transition-colors duration-200 ${isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-primary'}`}>
+  <button 
+    onClick={onClick} 
+    className={`flex flex-col items-center justify-center w-full pt-2 pb-1 transition-colors duration-200 
+      ${isActive ? 'text-primary dark:text-primary' : 'text-gray-600 dark:text-gray-200 hover:text-primary dark:hover:text-primary'}
+      hover:bg-gray-50 dark:hover:bg-neutral-dark/50 rounded-lg`}
+  >
     <div className="relative">
       {icon}
       {badgeCount > 0 && (
@@ -28,35 +31,41 @@ const NavButton: React.FC<{
   </button>
 );
 
-export const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, setActiveScreen, betSlipCount }) => {
+export const BottomNav: React.FC<BottomNavProps> = ({ betSlipCount }) => {
+  const navigate = useNavigate();
+  const location = useLocation();
+  const currentPath = location.pathname;
+
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-dark-gray border-t border-gray-200 dark:border-gray-700 shadow-lg z-20">
-      <div className="container mx-auto flex justify-around max-w-4xl">
-        <NavButton
-          label="Home"
-          icon={<HomeIcon />}
-          isActive={activeScreen === 'home'}
-          onClick={() => setActiveScreen('home')}
-        />
-        <NavButton
-          label="My Bets"
-          icon={<ReceiptIcon />}
-          isActive={activeScreen === 'bets'}
-          onClick={() => setActiveScreen('bets')}
-          badgeCount={betSlipCount}
-        />
-        <NavButton
-          label="Wallet"
-          icon={<CreditCardIcon />}
-          isActive={activeScreen === 'wallet'}
-          onClick={() => setActiveScreen('wallet')}
-        />
-        <NavButton
-          label="Profile"
-          icon={<UserCircleIcon />}
-          isActive={activeScreen === 'profile'}
-          onClick={() => setActiveScreen('profile')}
-        />
+    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-dark-gray border-t border-gray-200 dark:border-gray-700 shadow-lg z-50 print:hidden w-full">
+      <div className="container mx-auto px-4">
+        <div className="flex justify-around items-center h-16 max-w-2xl mx-auto">
+          <NavButton
+            label="Home"
+            icon={<HomeIcon />}
+            isActive={currentPath === '/'}
+            onClick={() => navigate('/')}
+          />
+          <NavButton
+            label="My Bets"
+            icon={<ReceiptIcon />}
+            isActive={currentPath === '/bets'}
+            onClick={() => navigate('/bets')}
+            badgeCount={betSlipCount}
+          />
+          <NavButton
+            label="Wallet"
+            icon={<CreditCardIcon />}
+            isActive={currentPath === '/wallet'}
+            onClick={() => navigate('/wallet')}
+          />
+          <NavButton
+            label="Profile"
+            icon={<UserCircleIcon />}
+            isActive={currentPath === '/profile'}
+            onClick={() => navigate('/profile')}
+          />
+        </div>
       </div>
     </nav>
   );

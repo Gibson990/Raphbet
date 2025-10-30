@@ -10,16 +10,16 @@ interface LeagueSelectorProps {
 
 export const LeagueSelector: React.FC<LeagueSelectorProps> = ({ leagues, selectedLeagueId, setSelectedLeagueId }) => {
   return (
-    <div className="overflow-x-auto">
-      <nav className="flex space-x-4 border-b-2 border-gray-200 pb-2">
+    <div className="overflow-x-auto -mx-4 px-4">
+      <nav className="flex space-x-2 border-b-2 border-gray-100 dark:border-gray-700 pb-2">
         {leagues.map((league) => (
           <button
             key={league.id}
             onClick={() => setSelectedLeagueId(league.id)}
-            className={`flex-shrink-0 px-4 py-2 text-sm sm:text-base font-semibold rounded-t-lg transition-colors duration-200 ease-in-out ${
+            className={`flex-shrink-0 px-5 py-3 text-base font-bold rounded-t-lg transition-all duration-300 ease-in-out outline-none ${
               selectedLeagueId === league.id
-                ? 'text-primary border-b-4 border-primary'
-                : 'text-gray-600 hover:bg-gray-100 hover:text-neutral-dark'
+                ? 'text-white bg-primary shadow-inner'
+                : 'text-gray-600 dark:text-gray-300 hover:bg-gray-200 dark:hover:bg-gray-700 hover:text-neutral-dark dark:hover:text-white'
             }`}
           >
             {league.name}
