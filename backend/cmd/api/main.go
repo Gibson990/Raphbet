@@ -29,12 +29,17 @@ func main() {
 
 	// Choose the data source: the real api-football provider when a key is
 	// present, otherwise a mock so the app runs end-to-end with zero setup.
+	// When a key is present we still wrap it with the mock as a fallback, so an
+	// inaccessible season (e.g. on the free plan) degrades to the bettable mock
+	// slate instead of an empty board.
+	mock := footballinfra.NewMockProvider()
 	var provider domain.FootballProvider
 	if cfg.HasUpstream() {
-		provider = footballinfra.NewAPISportsProvider(cfg.APISportsBaseURL, cfg.APISportsKey, cfg.Season)
-		log.Printf("football: using api-football (season %s)", cfg.Season)
+		real := footballinfra.NewAPISportsProvider(cfg.APISportsBaseURL, cfg.APISportsKey, cfg.Season)
+		provider = footballinfra.NewFallbackProvider(real, mock)
+		log.Printf("football: using api-football (season %s) with mock fallback", cfg.Season)
 	} else {
-		provider = footballinfra.NewMockProvider()
+		provider = mock
 		log.Printf("football: API_SPORTS_KEY not set — using mock World Cup data")
 	}
 

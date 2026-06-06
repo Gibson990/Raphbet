@@ -4,6 +4,7 @@
 package config
 
 import (
+	"bufio"
 	"os"
 	"strconv"
 	"strings"
@@ -42,7 +43,10 @@ type Config struct {
 }
 
 // Load reads configuration from the environment, applying sensible defaults.
+// It first loads a .env file (if present) so local development needs no manual
+// exporting. Real environment variables always take precedence over the file.
 func Load() Config {
+	loadDotEnv(".env")
 	return Config{
 		Port:             getEnv("PORT", "8080"),
 		AllowedOrigins:   splitCSV(getEnv("ALLOWED_ORIGINS", "http://localhost:3000")),
@@ -58,6 +62,40 @@ func Load() Config {
 
 // HasUpstream reports whether a real api-football key is configured.
 func (c Config) HasUpstream() bool { return c.APISportsKey != "" }
+
+// loadDotEnv loads KEY=VALUE lines from a .env file into the process
+// environment without overriding variables already set. Missing file is a
+// no-op. Supports # comments, blank lines, optional "export " prefix and
+// quoted values. Implemented with the standard library only.
+func loadDotEnv(path string) {
+	f, err := os.Open(path)
+	if err != nil {
+		return // no .env file — that's fine
+	}
+	defer f.Close()
+
+	scanner := bufio.NewScanner(f)
+	for scanner.Scan() {
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" || strings.HasPrefix(line, "#") {
+			continue
+		}
+		line = strings.TrimPrefix(line, "export ")
+		key, val, ok := strings.Cut(line, "=")
+		if !ok {
+			continue
+		}
+		key = strings.TrimSpace(key)
+		val = strings.TrimSpace(val)
+		val = strings.Trim(val, `"'`)
+		if key == "" {
+			continue
+		}
+		if _, exists := os.LookupEnv(key); !exists {
+			_ = os.Setenv(key, val)
+		}
+	}
+}
 
 func getEnv(key, fallback string) string {
 	if v := strings.TrimSpace(os.Getenv(key)); v != "" {

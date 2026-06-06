@@ -7,6 +7,7 @@ import (
 	"net/http"
 	"net/url"
 	"strconv"
+	"strings"
 	"time"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
@@ -64,6 +65,7 @@ func (p *APISportsProvider) get(ctx context.Context, path string, q url.Values, 
 // ---- Fixtures ----
 
 type fixturesResponse struct {
+	Errors   json.RawMessage `json:"errors"`
 	Response []struct {
 		Fixture struct {
 			ID     int       `json:"id"`
@@ -103,6 +105,9 @@ func (p *APISportsProvider) Matches(ctx context.Context, leagueID string) ([]dom
 	if err := p.get(ctx, "/fixtures", q, &body); err != nil {
 		return nil, err
 	}
+	if err := apiErr(body.Errors); err != nil {
+		return nil, err
+	}
 
 	matches := make([]domain.Match, 0, len(body.Response))
 	for _, f := range body.Response {
@@ -127,6 +132,7 @@ func (p *APISportsProvider) Matches(ctx context.Context, leagueID string) ([]dom
 // ---- Standings ----
 
 type standingsResponse struct {
+	Errors   json.RawMessage `json:"errors"`
 	Response []struct {
 		League struct {
 			Standings [][]struct {
@@ -154,6 +160,9 @@ func (p *APISportsProvider) Standings(ctx context.Context, leagueID string) ([]d
 	if err := p.get(ctx, "/standings", q, &body); err != nil {
 		return nil, err
 	}
+	if err := apiErr(body.Errors); err != nil {
+		return nil, err
+	}
 
 	out := []domain.Standing{}
 	for _, r := range body.Response {
@@ -173,6 +182,25 @@ func (p *APISportsProvider) Standings(ctx context.Context, leagueID string) ([]d
 		}
 	}
 	return out, nil
+}
+
+// apiErr inspects api-football's "errors" field. It is an empty array `[]` on
+// success but an object like {"plan":"..."} on failure (e.g. a season the free
+// plan cannot access). Returns a non-nil error only when a real error is present.
+func apiErr(raw json.RawMessage) error {
+	s := strings.TrimSpace(string(raw))
+	if s == "" || s == "[]" || s == "null" || s == "{}" {
+		return nil
+	}
+	var m map[string]string
+	if err := json.Unmarshal(raw, &m); err != nil || len(m) == 0 {
+		return nil
+	}
+	parts := make([]string, 0, len(m))
+	for k, v := range m {
+		parts = append(parts, k+": "+v)
+	}
+	return fmt.Errorf("api-football: %s", strings.Join(parts, "; "))
 }
 
 // mapStatus translates api-football short status codes to our domain status.
