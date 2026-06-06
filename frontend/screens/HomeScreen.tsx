@@ -7,6 +7,7 @@ import { PromoBanner } from '../components/PromoBanner';
 import { SoccerBallIcon, TicketIcon } from '../components/icons';
 import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
 import type { League, Match, Standing, BetSelection } from '../types';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppOutlet } from '../hooks/useAppOutlet';
 
@@ -19,7 +20,8 @@ const HomeScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'matches' | 'standings'>('matches');
   const [isBetSlipOpen, setIsBetSlipOpen] = useState(false);
-  const { isVerified } = useAuth();
+  const { isLoggedIn, isVerified } = useAuth();
+  const navigate = useNavigate();
 
   const { betSlip, addToBetSlip, removeFromBetSlip, updateWager, placeBet, clearBetSlip } = wallet;
 
@@ -65,10 +67,7 @@ const HomeScreen: React.FC = () => {
   );
 
   const handleSelectOdd = (match: Match, market: '1' | 'X' | '2', odd: number) => {
-    if (!isVerified) {
-        addToast('Please verify your account to place a bet.', 'error');
-        return;
-    }
+    // Guests can freely build a bet slip; auth is enforced at placement.
     const selection: BetSelection = {
       matchId: match.id,
       matchDescription: `${match.homeTeam.name} vs ${match.awayTeam.name}`,
@@ -80,9 +79,15 @@ const HomeScreen: React.FC = () => {
   };
 
   const handlePlaceBet = () => {
+    if (!isLoggedIn) {
+      addToast('Log in to place your bet.', 'info');
+      navigate('/login');
+      return;
+    }
     if (!isVerified) {
-        addToast('Please verify your account to place a bet.', 'error');
-        return;
+      addToast('Verify your account to place a bet.', 'info');
+      navigate('/kyc');
+      return;
     }
     const result = placeBet();
     if (result.success) {

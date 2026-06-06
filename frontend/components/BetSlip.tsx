@@ -15,10 +15,14 @@ interface BetSlipProps {
 
 /** Shared inner content used by both the desktop rail and the mobile modal. */
 const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange, onPlaceBet, onClear }) => {
-  const { isVerified } = useAuth();
+  const { isLoggedIn, isVerified } = useAuth();
   const totalWager = bets.reduce((sum, bet) => sum + bet.wager, 0);
   const totalPayout = bets.reduce((sum, bet) => sum + bet.wager * bet.selection.odds, 0);
-  const isBettingDisabled = !isVerified || bets.length === 0 || totalWager <= 0;
+  // Auth is enforced when placing (routes to login/KYC), so we only disable on
+  // an empty/zero slip — guests can still click to be prompted to sign in.
+  const isBettingDisabled = bets.length === 0 || totalWager <= 0;
+  const needsAuth = !isLoggedIn || !isVerified;
+  const ctaLabel = !isLoggedIn ? 'Log in to bet' : !isVerified ? 'Verify to bet' : 'Place Bet';
 
   if (bets.length === 0) {
     return (
@@ -85,10 +89,14 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange,
         disabled={isBettingDisabled}
         className="mt-3 w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-dark transition-colors disabled:bg-gray-300 dark:disabled:bg-neutral-dark-card disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
-        {!isVerified && <LockIcon className="h-5 w-5" />}
-        <span>{isVerified ? 'Place Bet' : 'Verify to bet'}</span>
+        {needsAuth && <LockIcon className="h-5 w-5" />}
+        <span>{ctaLabel}</span>
       </button>
-      {!isVerified && <p className="text-center text-xs text-danger mt-2">Verify your account to place bets.</p>}
+      {needsAuth && (
+        <p className="text-center text-xs text-gray-400 mt-2">
+          {!isLoggedIn ? "You'll be asked to sign in first." : 'Account verification is required to bet.'}
+        </p>
+      )}
     </>
   );
 };

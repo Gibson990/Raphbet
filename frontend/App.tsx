@@ -56,10 +56,10 @@ export default function App() {
           }
         />
 
-        {/* Authenticated area */}
-        <Route element={<RequireAuth />}>
-          <Route element={<AppLayout ctx={ctx} />}>
-            <Route index element={<HomeScreen />} />
+        {/* App shell — Matches is public; wallet/bets/profile require login */}
+        <Route element={<AppLayout ctx={ctx} />}>
+          <Route index element={<HomeScreen />} />
+          <Route element={<RequireAuth />}>
             <Route path="bets" element={<MyBetsScreen />} />
             <Route path="wallet" element={<WalletScreen />} />
             <Route path="profile" element={<ProfileScreen />} />
