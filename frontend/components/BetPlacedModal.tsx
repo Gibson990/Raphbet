@@ -2,6 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import Modal from './common/Modal';
 import { CheckCircleIcon } from './icons';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 export interface BetPlacedInfo {
   count: number;
@@ -17,6 +18,7 @@ interface BetPlacedModalProps {
 /** Success screen shown after a bet is placed. */
 export const BetPlacedModal: React.FC<BetPlacedModalProps> = ({ info, onClose }) => {
   const navigate = useNavigate();
+  const { format } = useCurrency();
 
   return (
     <Modal title="Bet placed" onClose={onClose}>
@@ -32,11 +34,11 @@ export const BetPlacedModal: React.FC<BetPlacedModalProps> = ({ info, onClose })
         <div className="mt-5 bg-gray-50 dark:bg-neutral-dark rounded-xl p-4 space-y-2 text-left">
           <div className="flex justify-between text-sm">
             <span className="text-gray-500 dark:text-gray-400">Total stake</span>
-            <span className="font-semibold tabular-nums">{info.stake.toLocaleString('en-US')} Tsh</span>
+            <span className="font-semibold tabular-nums">{format(info.stake)}</span>
           </div>
           <div className="flex justify-between text-sm">
             <span className="text-gray-500 dark:text-gray-400">Potential payout</span>
-            <span className="font-bold text-success tabular-nums">{Math.round(info.payout).toLocaleString('en-US')} Tsh</span>
+            <span className="font-bold text-success tabular-nums">{format(info.payout)}</span>
           </div>
         </div>
 

@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { PlacedBet } from '../types';
 import { TicketIcon } from '../components/icons';
 import { useAppOutlet } from '../hooks/useAppOutlet';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface BetStatusBadgeProps {
   status: PlacedBet['status'];
@@ -22,14 +23,15 @@ const BetStatusBadge: React.FC<BetStatusBadgeProps> = ({ status }) => {
 };
 
 const BetHistoryCard: React.FC<{ bet: PlacedBet }> = ({ bet }) => {
+  const { format } = useCurrency();
   const getPayoutText = () => {
     if (bet.status === 'WON') {
-      return `+${(bet.payout || 0).toLocaleString('en-US')} Tsh`;
+      return `+${format(bet.payout || 0)}`;
     }
     if (bet.status === 'LOST') {
-      return `-${bet.wager.toLocaleString('en-US')} Tsh`;
+      return `-${format(bet.wager)}`;
     }
-    return `${(bet.wager * bet.selection.odds).toLocaleString('en-US')} Tsh`;
+    return format(bet.wager * bet.selection.odds);
   };
 
   return (
@@ -47,7 +49,7 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet }> = ({ bet }) => {
       <div className="mt-4 border-t border-gray-200 dark:border-gray-700 pt-3 flex justify-between items-center text-sm">
         <div>
           <span className="text-gray-500 dark:text-gray-400">Wager: </span>
-          <span className="font-semibold">{bet.wager.toLocaleString('en-US')} Tsh</span>
+          <span className="font-semibold">{format(bet.wager)}</span>
         </div>
         <div>
           <span className="text-gray-500 dark:text-gray-400">{bet.status === 'PENDING' ? 'To Win:' : 'Result:'} </span>

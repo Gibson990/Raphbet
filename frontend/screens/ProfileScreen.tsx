@@ -2,12 +2,15 @@ import React, { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppOutlet } from '../hooks/useAppOutlet';
+import { useCurrency } from '../contexts/CurrencyContext';
+import { CurrencySelect } from '../components/CurrencySelect';
 import { SunIcon, MoonIcon, CheckCircleIcon, ShieldExclamationIcon, CameraIcon, PencilIcon } from '../components/icons';
 import Modal from '../components/common/Modal';
 import TermsContent from '../components/auth/TermsContent';
 
 const ProfileScreen: React.FC = () => {
   const { isDarkMode, toggleDarkMode, wallet } = useAppOutlet();
+  const { format } = useCurrency();
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
@@ -61,7 +64,7 @@ const ProfileScreen: React.FC = () => {
             {/* Stats */}
             <div className="grid grid-cols-3 gap-3 mt-5">
               <div className="bg-gray-50 dark:bg-neutral-dark rounded-xl p-3 text-center">
-                <p className="text-lg font-extrabold tabular-nums">{wallet.balance.toLocaleString('en-US')}</p>
+                <p className="text-lg font-extrabold tabular-nums">{format(wallet.balance)}</p>
                 <p className="text-[11px] text-gray-400 uppercase font-semibold">Balance</p>
               </div>
               <div className="bg-gray-50 dark:bg-neutral-dark rounded-xl p-3 text-center">
@@ -114,6 +117,11 @@ const ProfileScreen: React.FC = () => {
             <button onClick={toggleDarkMode} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${isDarkMode ? 'bg-primary' : 'bg-gray-300'}`}>
               <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
+          </div>
+
+          <div className="flex justify-between items-center py-3 px-1 border-b border-gray-100 dark:border-neutral-border">
+            <span className="font-semibold text-sm">Display currency</span>
+            <CurrencySelect />
           </div>
 
           <button onClick={() => setIsTermsOpen(true)} className="w-full flex justify-between items-center py-3 px-1 text-left">

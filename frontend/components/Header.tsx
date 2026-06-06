@@ -2,7 +2,9 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { WalletIcon } from './icons';
 import { BrandLogo } from './layout/BrandLogo';
+import { CurrencySelect } from './CurrencySelect';
 import { useAuth } from '../contexts/AuthContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface HeaderProps {
   balance: number;
@@ -11,6 +13,7 @@ interface HeaderProps {
 
 export const Header: React.FC<HeaderProps> = ({ balance, onDeposit }) => {
   const { isLoggedIn } = useAuth();
+  const { format } = useCurrency();
   const navigate = useNavigate();
 
   return (
@@ -21,29 +24,29 @@ export const Header: React.FC<HeaderProps> = ({ balance, onDeposit }) => {
         </div>
         <div className="hidden lg:block text-sm font-semibold text-gray-400">FIFA World Cup 2026</div>
 
-        {isLoggedIn ? (
-          <div className="flex items-center gap-2 sm:gap-3">
-            <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-dark-card px-3 py-2 rounded-xl">
-              <WalletIcon className="h-5 w-5 text-accent" />
-              <span className="font-bold text-sm sm:text-base text-neutral-dark dark:text-white tabular-nums">
-                {balance.toLocaleString('en-US')}
-              </span>
-              <span className="text-xs text-gray-400 font-medium">Tsh</span>
-            </div>
-            <button onClick={onDeposit} className="bg-primary hover:bg-primary-dark text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors">
-              Deposit
-            </button>
-          </div>
-        ) : (
-          <div className="flex items-center gap-2">
-            <button onClick={() => navigate('/login')} className="text-sm font-semibold px-4 py-2 rounded-xl text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-dark-card transition-colors">
-              Log in
-            </button>
-            <button onClick={() => navigate('/login')} className="bg-primary hover:bg-primary-dark text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors">
-              Register
-            </button>
-          </div>
-        )}
+        <div className="flex items-center gap-2 sm:gap-3">
+          <CurrencySelect className="hidden sm:block" />
+          {isLoggedIn ? (
+            <>
+              <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-dark-card px-3 py-2 rounded-xl">
+                <WalletIcon className="h-5 w-5 text-accent" />
+                <span className="font-bold text-sm sm:text-base text-neutral-dark dark:text-white tabular-nums">{format(balance)}</span>
+              </div>
+              <button onClick={onDeposit} className="bg-primary hover:bg-primary-dark text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors">
+                Deposit
+              </button>
+            </>
+          ) : (
+            <>
+              <button onClick={() => navigate('/login')} className="text-sm font-semibold px-3 sm:px-4 py-2 rounded-xl text-gray-600 dark:text-gray-200 hover:bg-gray-100 dark:hover:bg-neutral-dark-card transition-colors">
+                Log in
+              </button>
+              <button onClick={() => navigate('/login')} className="bg-primary hover:bg-primary-dark text-white text-sm font-bold px-3 sm:px-4 py-2 rounded-xl transition-colors">
+                Register
+              </button>
+            </>
+          )}
+        </div>
       </div>
     </header>
   );

@@ -3,10 +3,13 @@ import { ChevronUpIcon, ChevronDownIcon, WalletIcon } from '../components/icons'
 import { MpesaIcon, AirtelMoneyIcon, StripeIcon } from '../components/icons';
 import type { Transaction } from '../types';
 import { useAppOutlet } from '../hooks/useAppOutlet';
+import { useCurrency } from '../contexts/CurrencyContext';
+import { CurrencySelect } from '../components/CurrencySelect';
 import TopUpModal from '../components/wallet/TopUpModal';
 import WithdrawModal from '../components/wallet/WithdrawModal';
 
 const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
+  const { format } = useCurrency();
   const isCredit = transaction.type === 'Payout' || transaction.type === 'Top-up';
   return (
     <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-neutral-border last:border-b-0">
@@ -20,7 +23,7 @@ const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction })
         </div>
       </div>
       <p className={`font-bold text-sm tabular-nums shrink-0 ${isCredit ? 'text-success' : 'text-danger'}`}>
-        {isCredit ? '+' : ''}{transaction.amount.toLocaleString('en-US')} Tsh
+        {isCredit ? '+' : ''}{format(transaction.amount)}
       </p>
     </div>
   );
@@ -28,6 +31,7 @@ const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction })
 
 const WalletScreen: React.FC = () => {
   const { wallet, addToast } = useAppOutlet();
+  const { format } = useCurrency();
   const { balance, transactions, topUpWallet, withdrawFromWallet } = wallet;
   const [isTopUpOpen, setTopUpOpen] = useState(false);
   const [isWithdrawOpen, setWithdrawOpen] = useState(false);
@@ -35,7 +39,10 @@ const WalletScreen: React.FC = () => {
   return (
     <>
       <div className="max-w-3xl mx-auto">
-        <h1 className="text-2xl sm:text-3xl font-extrabold mb-5">Wallet</h1>
+        <div className="flex items-center justify-between mb-5">
+          <h1 className="text-2xl sm:text-3xl font-extrabold">Wallet</h1>
+          <CurrencySelect />
+        </div>
 
         {/* Balance card */}
         <div className="relative overflow-hidden bg-gradient-to-br from-primary via-primary to-accent text-white p-6 rounded-2xl shadow-lg">
@@ -43,7 +50,7 @@ const WalletScreen: React.FC = () => {
             <WalletIcon className="h-40 w-40" />
           </div>
           <p className="text-sm font-medium opacity-90">Available balance</p>
-          <p className="text-4xl font-extrabold tracking-tight mt-1 tabular-nums">{balance.toLocaleString('en-US')} <span className="text-2xl opacity-80">Tsh</span></p>
+          <p className="text-4xl font-extrabold tracking-tight mt-1 tabular-nums">{format(balance)}</p>
           <div className="grid grid-cols-2 gap-3 mt-6">
             <button onClick={() => setTopUpOpen(true)} className="bg-white text-primary font-bold py-2.5 rounded-xl hover:bg-white/90 transition-colors flex items-center justify-center gap-2">
               <ChevronUpIcon className="h-5 w-5" /> Top Up

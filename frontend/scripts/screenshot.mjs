@@ -67,6 +67,11 @@ for (const [name, viewport] of [
   await waitForBoard(page);
   await shot(page, `home-${name}`);
   await navAndShot(page, /wallet/i, `wallet-${name}`);
+  // Prove currency conversion: switch the display currency to USD on the wallet.
+  await page.locator('select[aria-label="Display currency"]').first().selectOption('USD').catch(() => {});
+  await page.waitForTimeout(600);
+  await shot(page, `wallet-usd-${name}`);
+  await page.locator('select[aria-label="Display currency"]').first().selectOption('TZS').catch(() => {});
   await navAndShot(page, /profile/i, `profile-${name}`);
   await navAndShot(page, /my bets/i, `bets-${name}`);
 

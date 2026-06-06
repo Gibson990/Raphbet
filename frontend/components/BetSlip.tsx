@@ -2,6 +2,7 @@ import React from 'react';
 import type { Bet } from '../types';
 import { TrashIcon, XIcon, LockIcon, TicketIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
+import { useCurrency } from '../contexts/CurrencyContext';
 
 interface BetSlipProps {
   bets: Bet[];
@@ -16,6 +17,7 @@ interface BetSlipProps {
 /** Shared inner content used by both the desktop rail and the mobile modal. */
 const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange, onPlaceBet, onClear }) => {
   const { isLoggedIn, isVerified } = useAuth();
+  const { format } = useCurrency();
   const totalWager = bets.reduce((sum, bet) => sum + bet.wager, 0);
   const totalPayout = bets.reduce((sum, bet) => sum + bet.wager * bet.selection.odds, 0);
   // Auth is enforced when placing (routes to login/KYC), so we only disable on
@@ -66,7 +68,7 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange,
               </div>
               <div className="text-right">
                 <p className="text-[11px] text-gray-400">To win</p>
-                <p className="font-semibold text-sm tabular-nums">{Math.round(wager * selection.odds).toLocaleString('en-US')}</p>
+                <p className="font-semibold text-sm tabular-nums">{format(wager * selection.odds)}</p>
               </div>
             </div>
           </div>
@@ -76,11 +78,11 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange,
       <div className="mt-4 pt-3 border-t border-gray-200 dark:border-neutral-border space-y-1.5">
         <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
           <span>Total stake</span>
-          <span className="tabular-nums">{totalWager.toLocaleString('en-US')} Tsh</span>
+          <span className="tabular-nums">{format(totalWager)}</span>
         </div>
         <div className="flex justify-between font-bold">
           <span>Potential payout</span>
-          <span className="text-success tabular-nums">{Math.round(totalPayout).toLocaleString('en-US')} Tsh</span>
+          <span className="text-success tabular-nums">{format(totalPayout)}</span>
         </div>
       </div>
 

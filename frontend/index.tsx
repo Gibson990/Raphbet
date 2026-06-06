@@ -3,6 +3,7 @@ import ReactDOM from 'react-dom/client';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
+import { CurrencyProvider } from './contexts/CurrencyContext';
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -14,7 +15,9 @@ root.render(
   <React.StrictMode>
     <BrowserRouter>
       <AuthProvider>
-        <App />
+        <CurrencyProvider>
+          <App />
+        </CurrencyProvider>
       </AuthProvider>
     </BrowserRouter>
   </React.StrictMode>
