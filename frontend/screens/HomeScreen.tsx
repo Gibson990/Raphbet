@@ -3,8 +3,8 @@ import { LeagueSelector } from '../components/LeagueSelector';
 import { MatchList } from '../components/MatchList';
 import { StandingsTable } from '../components/StandingsTable';
 import { BetSlip } from '../components/BetSlip';
-import { Carousel } from '../components/common/Carousel';
-import { SoccerBallIcon } from '../components/icons';
+import { PromoBanner } from '../components/PromoBanner';
+import { SoccerBallIcon, TicketIcon } from '../components/icons';
 import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
 import type { League, Match, Standing, BetSelection } from '../types';
 import type { UseVirtualWalletReturn } from '../hooks/useVirtualWallet';
@@ -63,6 +63,12 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
 
   const selectedLeague = useMemo(() => leagues.find(l => l.id === selectedLeagueId), [leagues, selectedLeagueId]);
 
+  // Map of matchId -> selected market, used to highlight active odds buttons.
+  const selections = useMemo(
+    () => Object.fromEntries(betSlip.map(b => [b.selection.matchId, b.selection.market])) as Record<string, '1' | 'X' | '2'>,
+    [betSlip],
+  );
+
   const handleSelectOdd = (match: Match, market: '1' | 'X' | '2', odd: number) => {
     if (!isVerified) {
         addToast('Please verify your account to place a bet.', 'error');
@@ -92,79 +98,95 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
     }
   }
   
-  const promoImages = [
-    'https://www.the-sun.com/wp-content/uploads/sites/6/2023/08/espn-bet-official-launch-date-new-788079712-1.png',
-    'https://www.legalsportsreport.com/wp-content/uploads/2019/09/FanDuel-Sportsbook-PA-promo.jpg',
-    'https://www.sportsbusinessjournal.com/-/media/Images/Daily/2023/11/14/ESPN-Bet.ashx',
-  ];
+  const betSlipProps = {
+    bets: betSlip,
+    onRemove: removeFromBetSlip,
+    onWagerChange: updateWager,
+    onPlaceBet: handlePlaceBet,
+    onClear: clearBetSlip,
+    onClose: () => setIsBetSlipOpen(false),
+  };
 
   return (
-    <div className="py-4 space-y-6">
-      <Carousel images={promoImages} />
+    <div className="lg:grid lg:grid-cols-[minmax(0,1fr)_340px] lg:gap-6 lg:items-start">
+      {/* Main column */}
+      <div className="space-y-5">
+        <PromoBanner />
 
-      <div className="bg-neutral-light dark:bg-neutral-dark-gray rounded-xl shadow-lg p-2 sm:p-4">
-        <div className="flex items-center space-x-4 mb-4 pb-4">
-          {selectedLeague ? (
-            <img src={selectedLeague.logo} alt={`${selectedLeague.name} logo`} className="h-10 w-10 sm:h-12 sm:w-12 object-contain" />
-          ) : (
-            <SoccerBallIcon className="h-12 w-12 text-gray-400" />
-          )}
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold">{selectedLeague?.name}</h1>
-            <p className="text-gray-500 dark:text-gray-400 text-sm">{selectedLeague?.country}</p>
-          </div>
-        </div>
-
-        <LeagueSelector
-          leagues={leagues}
-          selectedLeagueId={selectedLeagueId}
-          setSelectedLeagueId={(id) => {
-            setSelectedLeagueId(id);
-            setActiveTab('matches');
-          }}
-        />
-
-        <div className="mt-6">
-          <div className="flex border-b border-gray-200 dark:border-gray-700">
-            <button
-              onClick={() => setActiveTab('matches')}
-              className={`py-2 px-4 font-semibold ${activeTab === 'matches' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}`}
-            >
-              Matches
-            </button>
-            <button
-              onClick={() => setActiveTab('standings')}
-              className={`py-2 px-4 font-semibold ${activeTab === 'standings' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}`}
-            >
-              Standings
-            </button>
-          </div>
-          <div className="mt-4">
-            {isLoading ? (
-              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                <SoccerBallIcon className="h-10 w-10 animate-spin" />
-                <p className="mt-3 text-sm">Loading World Cup matches…</p>
-              </div>
+        <div className="bg-white dark:bg-neutral-dark-gray rounded-2xl border border-gray-200 dark:border-neutral-border p-3 sm:p-5">
+          <div className="flex items-center gap-3 mb-4">
+            {selectedLeague ? (
+              <img src={selectedLeague.logo} alt={`${selectedLeague.name} logo`} className="h-9 w-9 object-contain" />
             ) : (
-              <>
-                {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} />}
-                {activeTab === 'standings' && <StandingsTable standings={standingsForLeague} />}
-              </>
+              <SoccerBallIcon className="h-9 w-9 text-gray-400" />
             )}
+            <div>
+              <h1 className="text-xl sm:text-2xl font-extrabold leading-tight">{selectedLeague?.name || 'Football'}</h1>
+              <p className="text-gray-400 text-xs">{selectedLeague?.country}</p>
+            </div>
+          </div>
+
+          {leagues.length > 1 && (
+            <LeagueSelector
+              leagues={leagues}
+              selectedLeagueId={selectedLeagueId}
+              setSelectedLeagueId={(id) => {
+                setSelectedLeagueId(id);
+                setActiveTab('matches');
+              }}
+            />
+          )}
+
+          <div className="mt-2">
+            <div className="flex gap-1 border-b border-gray-200 dark:border-neutral-border">
+              {(['matches', 'standings'] as const).map(tab => (
+                <button
+                  key={tab}
+                  onClick={() => setActiveTab(tab)}
+                  className={`py-2.5 px-4 text-sm font-bold capitalize transition-colors ${
+                    activeTab === tab ? 'text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+                  }`}
+                >
+                  {tab}
+                </button>
+              ))}
+            </div>
+            <div className="mt-4">
+              {isLoading ? (
+                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                  <SoccerBallIcon className="h-10 w-10 animate-spin" />
+                  <p className="mt-3 text-sm">Loading World Cup matches…</p>
+                </div>
+              ) : (
+                <>
+                  {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} selections={selections} />}
+                  {activeTab === 'standings' && <StandingsTable standings={standingsForLeague} />}
+                </>
+              )}
+            </div>
           </div>
         </div>
       </div>
-      
-      {isBetSlipOpen && (
-        <BetSlip 
-          bets={betSlip}
-          onRemove={removeFromBetSlip}
-          onWagerChange={updateWager}
-          onPlaceBet={handlePlaceBet}
-          onClear={clearBetSlip}
-          onClose={() => setIsBetSlipOpen(false)}
-        />
+
+      {/* Desktop bet-slip rail */}
+      <div className="hidden lg:block lg:sticky lg:top-20">
+        <BetSlip {...betSlipProps} variant="rail" />
+      </div>
+
+      {/* Mobile floating "view bet slip" button */}
+      {betSlip.length > 0 && !isBetSlipOpen && (
+        <button
+          onClick={() => setIsBetSlipOpen(true)}
+          className="lg:hidden fixed bottom-20 right-4 z-30 flex items-center gap-2 bg-primary text-white font-bold px-4 py-3 rounded-full shadow-lg"
+        >
+          <TicketIcon className="h-5 w-5" />
+          Bet Slip
+          <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs bg-white text-primary rounded-full">{betSlip.length}</span>
+        </button>
       )}
+
+      {/* Mobile bet-slip modal */}
+      {isBetSlipOpen && <BetSlip {...betSlipProps} variant="modal" />}
     </div>
   );
 }

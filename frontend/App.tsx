@@ -1,6 +1,7 @@
 import React, { useState, useCallback } from 'react';
 import { Header } from './components/Header';
 import { BottomNav } from './components/BottomNav';
+import { Sidebar } from './components/layout/Sidebar';
 import { useVirtualWallet } from './hooks/useVirtualWallet';
 import { useDarkMode } from './hooks/useDarkMode';
 import { useAuth } from './contexts/AuthContext';
@@ -61,13 +62,22 @@ export default function App() {
 
   return (
     <div className="min-h-screen bg-neutral-light-gray dark:bg-neutral-dark text-neutral-dark dark:text-neutral-light-gray font-sans">
-      <div className="relative">
-        <Header balance={wallet.balance} />
-        <main className="container mx-auto max-w-4xl px-2 sm:px-4 pb-24">
-          {renderScreen()}
-        </main>
-        <BottomNav activeScreen={activeScreen} setActiveScreen={setActiveScreen} betSlipCount={wallet.betSlip.length} />
+      <div className="lg:flex">
+        <Sidebar
+          activeScreen={activeScreen}
+          setActiveScreen={setActiveScreen}
+          betSlipCount={wallet.betSlip.length}
+          isDarkMode={isDarkMode}
+          toggleDarkMode={toggleDarkMode}
+        />
+        <div className="flex-1 min-w-0">
+          <Header balance={wallet.balance} onDeposit={() => setActiveScreen('wallet')} />
+          <main className="px-3 sm:px-6 py-5 pb-24 lg:pb-8 max-w-6xl mx-auto w-full">
+            {renderScreen()}
+          </main>
+        </div>
       </div>
+      <BottomNav activeScreen={activeScreen} setActiveScreen={setActiveScreen} betSlipCount={wallet.betSlip.length} />
       <div className="fixed top-20 right-4 z-50 space-y-2">
         {toasts.map(toast => (
           <Toast key={toast.id} message={toast.message} type={toast.type} onClose={() => setToasts(ts => ts.filter(t => t.id !== toast.id))} />

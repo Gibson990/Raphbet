@@ -30,7 +30,7 @@ const NavButton: React.FC<{
 
 export const BottomNav: React.FC<BottomNavProps> = ({ activeScreen, setActiveScreen, betSlipCount }) => {
   return (
-    <nav className="fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-dark-gray border-t border-gray-200 dark:border-gray-700 shadow-lg z-20">
+    <nav className="lg:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-neutral-dark-gray border-t border-gray-200 dark:border-neutral-border shadow-lg z-20">
       <div className="container mx-auto flex justify-around max-w-4xl">
         <NavButton
           label="Home"

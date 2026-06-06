@@ -1,6 +1,6 @@
 import React from 'react';
 import type { Bet } from '../types';
-import { TrashIcon, XIcon, LockIcon } from './icons';
+import { TrashIcon, XIcon, LockIcon, TicketIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
 
 interface BetSlipProps {
@@ -10,99 +10,126 @@ interface BetSlipProps {
   onPlaceBet: () => void;
   onClear: () => void;
   onClose: () => void;
+  variant?: 'modal' | 'rail';
 }
 
-export const BetSlip: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange, onPlaceBet, onClear, onClose }) => {
+/** Shared inner content used by both the desktop rail and the mobile modal. */
+const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange, onPlaceBet, onClear }) => {
   const { isVerified } = useAuth();
   const totalWager = bets.reduce((sum, bet) => sum + bet.wager, 0);
   const totalPayout = bets.reduce((sum, bet) => sum + bet.wager * bet.selection.odds, 0);
   const isBettingDisabled = !isVerified || bets.length === 0 || totalWager <= 0;
 
+  if (bets.length === 0) {
+    return (
+      <div className="flex flex-col items-center justify-center text-center py-12 px-6">
+        <div className="h-14 w-14 rounded-full bg-gray-100 dark:bg-neutral-dark flex items-center justify-center mb-3">
+          <TicketIcon className="h-7 w-7 text-gray-400" />
+        </div>
+        <p className="font-semibold text-gray-700 dark:text-gray-200">Your bet slip is empty</p>
+        <p className="text-sm text-gray-400 mt-1">Tap any odds to add a selection.</p>
+      </div>
+    );
+  }
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-40 flex justify-center items-end" onClick={onClose}>
-      <div 
-        className="bg-neutral-light-gray dark:bg-neutral-dark-gray w-full max-w-lg rounded-t-2xl shadow-lg p-4 flex flex-col max-h-[80vh]"
+    <>
+      <div className="space-y-3 overflow-y-auto pr-1 flex-grow">
+        {bets.map(({ selection, wager }) => (
+          <div key={selection.matchId} className="bg-gray-50 dark:bg-neutral-dark rounded-xl p-3">
+            <div className="flex justify-between items-start gap-2">
+              <div className="min-w-0">
+                <p className="text-xs text-gray-400 truncate">{selection.matchDescription}</p>
+                <p className="font-semibold text-sm">{selection.marketLabel}</p>
+              </div>
+              <div className="flex items-center gap-2 shrink-0">
+                <span className="font-bold text-primary tabular-nums">{selection.odds.toFixed(2)}</span>
+                <button onClick={() => onRemove(selection.matchId)} className="text-gray-400 hover:text-danger">
+                  <TrashIcon className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            <div className="mt-2.5 flex items-center justify-between gap-2">
+              <div className="relative">
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Tsh</span>
+                <input
+                  type="number"
+                  value={wager || ''}
+                  onChange={(e) => onWagerChange(selection.matchId, parseFloat(e.target.value) || 0)}
+                  placeholder="0"
+                  className="w-28 pl-9 pr-2 py-1.5 text-sm border border-gray-300 dark:border-neutral-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary bg-transparent tabular-nums"
+                />
+              </div>
+              <div className="text-right">
+                <p className="text-[11px] text-gray-400">To win</p>
+                <p className="font-semibold text-sm tabular-nums">{Math.round(wager * selection.odds).toLocaleString('en-US')}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+      </div>
+
+      <div className="mt-4 pt-3 border-t border-gray-200 dark:border-neutral-border space-y-1.5">
+        <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
+          <span>Total stake</span>
+          <span className="tabular-nums">{totalWager.toLocaleString('en-US')} Tsh</span>
+        </div>
+        <div className="flex justify-between font-bold">
+          <span>Potential payout</span>
+          <span className="text-success tabular-nums">{Math.round(totalPayout).toLocaleString('en-US')} Tsh</span>
+        </div>
+      </div>
+
+      <button
+        onClick={onPlaceBet}
+        disabled={isBettingDisabled}
+        className="mt-3 w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-dark transition-colors disabled:bg-gray-300 dark:disabled:bg-neutral-dark-card disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+      >
+        {!isVerified && <LockIcon className="h-5 w-5" />}
+        <span>{isVerified ? 'Place Bet' : 'Verify to bet'}</span>
+      </button>
+      {!isVerified && <p className="text-center text-xs text-danger mt-2">Verify your account to place bets.</p>}
+    </>
+  );
+};
+
+const SlipHeader: React.FC<{ count: number; onClear: () => void; onClose?: () => void }> = ({ count, onClear, onClose }) => (
+  <div className="flex justify-between items-center pb-3 mb-3 border-b border-gray-200 dark:border-neutral-border shrink-0">
+    <h2 className="text-lg font-bold flex items-center gap-2">
+      Bet Slip
+      {count > 0 && <span className="inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs font-bold text-white bg-primary rounded-full">{count}</span>}
+    </h2>
+    <div className="flex items-center gap-3">
+      {count > 0 && <button onClick={onClear} className="text-sm text-primary hover:underline">Clear</button>}
+      {onClose && (
+        <button onClick={onClose} className="text-gray-400 hover:text-neutral-dark dark:hover:text-white lg:hidden">
+          <XIcon className="h-5 w-5" />
+        </button>
+      )}
+    </div>
+  </div>
+);
+
+export const BetSlip: React.FC<BetSlipProps> = (props) => {
+  // Desktop: embedded sticky rail card.
+  if (props.variant === 'rail') {
+    return (
+      <div className="flex flex-col bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-4 max-h-[calc(100vh-7rem)]">
+        <SlipHeader count={props.bets.length} onClear={props.onClear} />
+        <BetSlipContent {...props} />
+      </div>
+    );
+  }
+
+  // Mobile: bottom-sheet modal.
+  return (
+    <div className="fixed inset-0 bg-black/50 z-40 flex justify-center items-end lg:hidden" onClick={props.onClose}>
+      <div
+        className="bg-white dark:bg-neutral-dark-gray w-full max-w-lg rounded-t-2xl shadow-xl p-4 flex flex-col max-h-[85vh] animate-fade-in"
         onClick={(e) => e.stopPropagation()}
       >
-        <div className="flex justify-between items-center border-b border-gray-200 dark:border-gray-700 pb-2 mb-4 flex-shrink-0">
-          <h2 className="text-xl font-bold">Bet Slip</h2>
-          <div className="flex items-center space-x-4">
-            {bets.length > 0 && (
-              <button onClick={onClear} className="text-sm text-primary hover:underline">
-                Clear All
-              </button>
-            )}
-            <button onClick={onClose} className="text-gray-500 dark:text-gray-400 hover:text-neutral-dark dark:hover:text-white">
-              <XIcon className="h-6 w-6" />
-            </button>
-          </div>
-        </div>
-
-        {bets.length === 0 ? (
-          <p className="text-center text-gray-500 dark:text-gray-400 py-8">Your bet slip is empty.</p>
-        ) : (
-          <>
-            <div className="space-y-4 overflow-y-auto pr-2 flex-grow">
-              {bets.map(({ selection, wager }) => (
-                <div key={selection.matchId} className="bg-white dark:bg-neutral-dark p-3 rounded-lg">
-                  <div className="flex justify-between items-start">
-                    <div>
-                      <p className="text-xs text-gray-500 dark:text-gray-400">{selection.matchDescription}</p>
-                      <p className="font-semibold">{selection.marketLabel}</p>
-                    </div>
-                    <div className="flex items-center space-x-2">
-                      <span className="font-bold text-lg text-primary">{selection.odds.toFixed(2)}</span>
-                      <button onClick={() => onRemove(selection.matchId)} className="text-gray-400 hover:text-red-500">
-                        <TrashIcon className="h-5 w-5" />
-                      </button>
-                    </div>
-                  </div>
-                  <div className="mt-3 flex items-center justify-between">
-                    <div className="relative">
-                      <span className="absolute left-3 top-1/2 -translate-y-1/2 text-gray-400">Tsh</span>
-                      <input
-                        type="number"
-                        value={wager || ''}
-                        onChange={(e) => onWagerChange(selection.matchId, parseFloat(e.target.value) || 0)}
-                        placeholder="Wager"
-                        className="w-32 pl-10 pr-2 py-1.5 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-transparent"
-                      />
-                    </div>
-                    <div className="text-right">
-                      <p className="text-xs text-gray-500 dark:text-gray-400">To Win</p>
-                      <p className="font-semibold">{(wager * selection.odds).toLocaleString('en-US')} Tsh</p>
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-
-            <div className="mt-6 border-t border-gray-200 dark:border-gray-700 pt-4 space-y-2 flex-shrink-0">
-              <div className="flex justify-between text-gray-600 dark:text-gray-300">
-                <span>Total Wager:</span>
-                <span>{totalWager.toLocaleString('en-US')} Tsh</span>
-              </div>
-              <div className="flex justify-between font-bold text-lg">
-                <span>Potential Payout:</span>
-                <span>{totalPayout.toLocaleString('en-US')} Tsh</span>
-              </div>
-            </div>
-
-            <div className="relative mt-4 flex-shrink-0">
-              <button
-                onClick={onPlaceBet}
-                disabled={isBettingDisabled}
-                className="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-400 dark:disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center space-x-2"
-              >
-                {!isVerified && <LockIcon className="h-5 w-5" />}
-                <span>Place Bet</span>
-              </button>
-              {!isVerified && bets.length > 0 && (
-                <p className="text-center text-xs text-red-500 mt-2">Please verify your account to place bets.</p>
-              )}
-            </div>
-          </>
-        )}
+        <SlipHeader count={props.bets.length} onClear={props.onClear} onClose={props.onClose} />
+        <BetSlipContent {...props} />
       </div>
     </div>
   );
