@@ -1,6 +1,7 @@
 import React, { useState, useMemo } from 'react';
 import type { PlacedBet } from '../types';
 import { TicketIcon } from '../components/icons';
+import { useAppOutlet } from '../hooks/useAppOutlet';
 
 interface BetStatusBadgeProps {
   status: PlacedBet['status'];
@@ -60,11 +61,9 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet }> = ({ bet }) => {
 };
 
 
-interface MyBetsScreenProps {
-  bets: PlacedBet[];
-}
-
-const MyBetsScreen: React.FC<MyBetsScreenProps> = ({ bets }) => {
+const MyBetsScreen: React.FC = () => {
+  const { wallet } = useAppOutlet();
+  const bets = wallet.placedBets;
   const [activeTab, setActiveTab] = useState<'active' | 'settled'>('active');
   
   const filteredBets = useMemo(() => {

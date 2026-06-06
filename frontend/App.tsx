@@ -1,19 +1,18 @@
 import React, { useState, useCallback } from 'react';
-import { Header } from './components/Header';
-import { BottomNav } from './components/BottomNav';
-import { Sidebar } from './components/layout/Sidebar';
+import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
 import { useVirtualWallet } from './hooks/useVirtualWallet';
 import { useDarkMode } from './hooks/useDarkMode';
 import { useAuth } from './contexts/AuthContext';
+import type { AppOutletContext } from './hooks/useAppOutlet';
 import Toast from './components/common/Toast';
+import { AppLayout } from './components/layout/AppLayout';
+import { RequireAuth } from './components/layout/RequireAuth';
 import LoginScreen from './screens/LoginScreen';
 import KycScreen from './screens/KycScreen';
 import HomeScreen from './screens/HomeScreen';
 import MyBetsScreen from './screens/MyBetsScreen';
 import WalletScreen from './screens/WalletScreen';
 import ProfileScreen from './screens/ProfileScreen';
-
-export type Screen = 'home' | 'bets' | 'wallet' | 'profile';
 
 export type ToastMessage = {
   id: number;
@@ -22,67 +21,59 @@ export type ToastMessage = {
 };
 
 export default function App() {
-  const [activeScreen, setActiveScreen] = useState<Screen>('home');
   const [isDarkMode, toggleDarkMode] = useDarkMode();
-  const { user, isLoggedIn, isVerified, completeKyc } = useAuth();
-  
+  const { isLoggedIn, isVerified, completeKyc } = useAuth();
+  const navigate = useNavigate();
   const wallet = useVirtualWallet(1000000); // Initial balance in TSH
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const addToast = useCallback((message: string, type: ToastMessage['type'] = 'info') => {
-    const id = Date.now();
-    setToasts(currentToasts => [...currentToasts, { id, message, type }]);
-    setTimeout(() => {
-      setToasts(currentToasts => currentToasts.filter(toast => toast.id !== id));
-    }, 3000);
+    const id = Date.now() + Math.random();
+    setToasts(current => [...current, { id, message, type }]);
+    setTimeout(() => setToasts(current => current.filter(t => t.id !== id)), 3000);
   }, []);
 
-  const renderScreen = () => {
-    switch (activeScreen) {
-      case 'home':
-        return <HomeScreen wallet={wallet} addToast={addToast} />;
-      case 'bets':
-        return <MyBetsScreen bets={wallet.placedBets} />;
-      case 'wallet':
-        return <WalletScreen wallet={wallet} addToast={addToast} />;
-      case 'profile':
-        return <ProfileScreen isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />;
-      default:
-        return <HomeScreen wallet={wallet} addToast={addToast} />;
-    }
-  };
-
-  if (!isLoggedIn) {
-    return <LoginScreen addToast={addToast} />;
-  }
-
-  if (!isVerified) {
-    return <KycScreen onSubmit={completeKyc} addToast={addToast} />;
-  }
+  const ctx: AppOutletContext = { wallet, addToast, isDarkMode, toggleDarkMode };
 
   return (
-    <div className="min-h-screen bg-neutral-light-gray dark:bg-neutral-dark text-neutral-dark dark:text-neutral-light-gray font-sans">
-      <div className="lg:flex">
-        <Sidebar
-          activeScreen={activeScreen}
-          setActiveScreen={setActiveScreen}
-          betSlipCount={wallet.betSlip.length}
-          isDarkMode={isDarkMode}
-          toggleDarkMode={toggleDarkMode}
+    <>
+      <Routes>
+        {/* Public auth routes */}
+        <Route
+          path="/login"
+          element={isLoggedIn ? <Navigate to="/" replace /> : <LoginScreen addToast={addToast} />}
         />
-        <div className="flex-1 min-w-0">
-          <Header balance={wallet.balance} onDeposit={() => setActiveScreen('wallet')} />
-          <main className="px-3 sm:px-6 py-5 pb-24 lg:pb-8 max-w-6xl mx-auto w-full">
-            {renderScreen()}
-          </main>
-        </div>
-      </div>
-      <BottomNav activeScreen={activeScreen} setActiveScreen={setActiveScreen} betSlipCount={wallet.betSlip.length} />
+        <Route
+          path="/kyc"
+          element={
+            !isLoggedIn ? (
+              <Navigate to="/login" replace />
+            ) : isVerified ? (
+              <Navigate to="/" replace />
+            ) : (
+              <KycScreen onSubmit={() => { completeKyc(); navigate('/', { replace: true }); }} addToast={addToast} />
+            )
+          }
+        />
+
+        {/* Authenticated area */}
+        <Route element={<RequireAuth />}>
+          <Route element={<AppLayout ctx={ctx} />}>
+            <Route index element={<HomeScreen />} />
+            <Route path="bets" element={<MyBetsScreen />} />
+            <Route path="wallet" element={<WalletScreen />} />
+            <Route path="profile" element={<ProfileScreen />} />
+          </Route>
+        </Route>
+
+        <Route path="*" element={<Navigate to="/" replace />} />
+      </Routes>
+
       <div className="fixed top-20 right-4 z-50 space-y-2">
         {toasts.map(toast => (
           <Toast key={toast.id} message={toast.message} type={toast.type} onClose={() => setToasts(ts => ts.filter(t => t.id !== toast.id))} />
         ))}
       </div>
-    </div>
+    </>
   );
 }

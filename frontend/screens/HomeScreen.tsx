@@ -7,16 +7,11 @@ import { PromoBanner } from '../components/PromoBanner';
 import { SoccerBallIcon, TicketIcon } from '../components/icons';
 import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
 import type { League, Match, Standing, BetSelection } from '../types';
-import type { UseVirtualWalletReturn } from '../hooks/useVirtualWallet';
 import { useAuth } from '../contexts/AuthContext';
-import { ToastMessage } from '../App';
+import { useAppOutlet } from '../hooks/useAppOutlet';
 
-interface HomeScreenProps {
-  wallet: UseVirtualWalletReturn;
-  addToast: (message: string, type: ToastMessage['type']) => void;
-}
-
-const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
+const HomeScreen: React.FC = () => {
+  const { wallet, addToast } = useAppOutlet();
   const [leagues, setLeagues] = useState<League[]>([]);
   const [selectedLeagueId, setSelectedLeagueId] = useState<string>('');
   const [matchesForLeague, setMatchesForLeague] = useState<Match[]>([]);

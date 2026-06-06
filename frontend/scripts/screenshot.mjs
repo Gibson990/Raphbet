@@ -44,12 +44,18 @@ async function gotoHome(page) {
   await page.waitForTimeout(500);
 }
 
+async function navAndShot(page, linkName, file) {
+  // Navigate in-app (mock auth is in-memory, so a full reload would log us out).
+  await page.getByRole('link', { name: linkName }).first().click().catch(() => {});
+  await page.waitForTimeout(800);
+  await shot(page, file);
+}
+
 for (const [name, viewport] of [
   ['desktop', { width: 1440, height: 900 }],
   ['mobile', { width: 390, height: 844 }],
 ]) {
   const page = await browser.newPage({ viewport });
-  // Capture the login screen once (desktop only) before authenticating.
   if (name === 'desktop') {
     await page.goto(BASE, { waitUntil: 'networkidle' });
     await page.waitForTimeout(800);
@@ -57,7 +63,9 @@ for (const [name, viewport] of [
   }
   await gotoHome(page);
   await shot(page, `home-${name}`);
-  // Surface any browser console errors for debugging white screens.
+  await navAndShot(page, /wallet/i, `wallet-${name}`);
+  await navAndShot(page, /profile/i, `profile-${name}`);
+  await navAndShot(page, /my bets/i, `bets-${name}`);
   await page.close();
 }
 
