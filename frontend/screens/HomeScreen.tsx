@@ -5,8 +5,8 @@ import { StandingsTable } from '../components/StandingsTable';
 import { BetSlip } from '../components/BetSlip';
 import { Carousel } from '../components/common/Carousel';
 import { SoccerBallIcon } from '../components/icons';
-import { mockLeagues, mockMatches, mockStandings } from '../services/api';
-import type { League, Match, BetSelection } from '../types';
+import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
+import type { League, Match, Standing, BetSelection } from '../types';
 import type { UseVirtualWalletReturn } from '../hooks/useVirtualWallet';
 import { useAuth } from '../contexts/AuthContext';
 import { ToastMessage } from '../App';
@@ -17,8 +17,11 @@ interface HomeScreenProps {
 }
 
 const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
-  const [leagues] = useState<League[]>(mockLeagues);
-  const [selectedLeagueId, setSelectedLeagueId] = useState<string>(leagues[0]?.id || '');
+  const [leagues, setLeagues] = useState<League[]>([]);
+  const [selectedLeagueId, setSelectedLeagueId] = useState<string>('');
+  const [matchesForLeague, setMatchesForLeague] = useState<Match[]>([]);
+  const [standingsForLeague, setStandingsForLeague] = useState<Standing[]>([]);
+  const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'matches' | 'standings'>('matches');
   const [isBetSlipOpen, setIsBetSlipOpen] = useState(false);
   const { isVerified } = useAuth();
@@ -31,9 +34,34 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
     }
   }, [betSlip.length]);
 
+  // Load the list of leagues once on mount and select the first one.
+  useEffect(() => {
+    let active = true;
+    fetchLeagues().then(data => {
+      if (!active) return;
+      setLeagues(data);
+      setSelectedLeagueId(prev => prev || data[0]?.id || '');
+    });
+    return () => { active = false; };
+  }, []);
+
+  // Load matches + standings whenever the selected league changes. Matches are
+  // polled every 30s so live scores and in-play odds stay fresh.
+  useEffect(() => {
+    if (!selectedLeagueId) return;
+    let active = true;
+
+    const loadStandings = () => fetchStandings(selectedLeagueId).then(s => { if (active) setStandingsForLeague(s); });
+    const loadMatches = () => fetchMatches(selectedLeagueId).then(m => { if (active) setMatchesForLeague(m); });
+
+    setIsLoading(true);
+    Promise.all([loadMatches(), loadStandings()]).finally(() => { if (active) setIsLoading(false); });
+
+    const interval = setInterval(loadMatches, 30_000);
+    return () => { active = false; clearInterval(interval); };
+  }, [selectedLeagueId]);
+
   const selectedLeague = useMemo(() => leagues.find(l => l.id === selectedLeagueId), [leagues, selectedLeagueId]);
-  const matchesForLeague = useMemo(() => mockMatches[selectedLeagueId] || [], [selectedLeagueId]);
-  const standingsForLeague = useMemo(() => mockStandings[selectedLeagueId] || [], [selectedLeagueId]);
 
   const handleSelectOdd = (match: Match, market: '1' | 'X' | '2', odd: number) => {
     if (!isVerified) {
@@ -112,8 +140,17 @@ const HomeScreen: React.FC<HomeScreenProps> = ({ wallet, addToast }) => {
             </button>
           </div>
           <div className="mt-4">
-            {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} />}
-            {activeTab === 'standings' && <StandingsTable standings={standingsForLeague} />}
+            {isLoading ? (
+              <div className="flex flex-col items-center justify-center py-16 text-gray-400">
+                <SoccerBallIcon className="h-10 w-10 animate-spin" />
+                <p className="mt-3 text-sm">Loading World Cup matches…</p>
+              </div>
+            ) : (
+              <>
+                {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} />}
+                {activeTab === 'standings' && <StandingsTable standings={standingsForLeague} />}
+              </>
+            )}
           </div>
         </div>
       </div>
