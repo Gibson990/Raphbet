@@ -1,5 +1,5 @@
 import React, { useState, useCallback } from 'react';
-import { Routes, Route, Navigate, useNavigate } from 'react-router-dom';
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useVirtualWallet } from './hooks/useVirtualWallet';
 import { useDarkMode } from './hooks/useDarkMode';
 import { useAuth } from './contexts/AuthContext';
@@ -24,7 +24,11 @@ export default function App() {
   const [isDarkMode, toggleDarkMode] = useDarkMode();
   const { isLoggedIn, isVerified, completeKyc } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const wallet = useVirtualWallet(1000000); // Initial balance in TSH
+
+  // After login, return the user to the page they originally tried to open.
+  const afterLoginTarget = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const addToast = useCallback((message: string, type: ToastMessage['type'] = 'info') => {
@@ -41,7 +45,7 @@ export default function App() {
         {/* Public auth routes */}
         <Route
           path="/login"
-          element={isLoggedIn ? <Navigate to="/" replace /> : <LoginScreen addToast={addToast} />}
+          element={isLoggedIn ? <Navigate to={afterLoginTarget} replace /> : <LoginScreen addToast={addToast} />}
         />
         <Route
           path="/kyc"

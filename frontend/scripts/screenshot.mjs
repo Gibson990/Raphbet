@@ -11,6 +11,12 @@ mkdirSync(OUT, { recursive: true });
 
 const browser = await chromium.launch();
 
+// 1x1 PNG to satisfy the KYC upload during the happy-path capture.
+const PNG_1PX = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==',
+  'base64',
+);
+
 async function shot(page, name) {
   await page.screenshot({ path: `${OUT}/${name}.png`, fullPage: true });
   console.log(`saved ${OUT}/${name}.png`);
@@ -24,10 +30,12 @@ async function waitForBoard(page) {
 }
 
 async function loginViaGoogle(page) {
+  // Mock auth is in-memory, so we must NOT reload (goto) after this point —
+  // clicking Google navigates client-side back to the app while staying signed in.
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
   await page.getByText('Continue with Google').click().catch(() => {});
-  await page.waitForTimeout(700);
+  await page.waitForTimeout(900);
 }
 
 async function navAndShot(page, linkName, file) {
@@ -54,15 +62,41 @@ for (const [name, viewport] of [
     await shot(page, 'login');
   }
 
-  // 3) Authenticated experience
+  // 3) Authenticated experience (stay in the SPA — no reload after login)
   await loginViaGoogle(page);
-  await page.goto(BASE, { waitUntil: 'networkidle' });
   await waitForBoard(page);
   await shot(page, `home-${name}`);
   await navAndShot(page, /wallet/i, `wallet-${name}`);
   await navAndShot(page, /profile/i, `profile-${name}`);
   await navAndShot(page, /my bets/i, `bets-${name}`);
 
+  await page.close();
+}
+
+// Happy path (desktop): login -> add selection -> KYC -> place bet -> success.
+{
+  const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await loginViaGoogle(page);
+  await waitForBoard(page);
+
+  await page.getByRole('button', { name: /home/i }).first().click().catch(() => {});
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: /verify to bet/i }).first().click().catch(() => {});
+  await page.waitForTimeout(600);
+
+  const fileInput = page.locator('input[type="file"]');
+  if (await fileInput.count()) {
+    await fileInput.setInputFiles({ name: 'id.png', mimeType: 'image/png', buffer: PNG_1PX });
+    await page.getByRole('button', { name: /submit for verification/i }).click().catch(() => {});
+  }
+  await page.waitForTimeout(2600);
+  await waitForBoard(page);
+
+  await page.getByRole('button', { name: /home/i }).first().click().catch(() => {});
+  await page.waitForTimeout(400);
+  await page.getByRole('button', { name: /place bet/i }).first().click().catch(() => {});
+  await page.waitForTimeout(900);
+  await shot(page, 'bet-success');
   await page.close();
 }
 

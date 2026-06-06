@@ -3,6 +3,7 @@ import { LeagueSelector } from '../components/LeagueSelector';
 import { MatchList } from '../components/MatchList';
 import { StandingsTable } from '../components/StandingsTable';
 import { BetSlip } from '../components/BetSlip';
+import { BetPlacedModal, type BetPlacedInfo } from '../components/BetPlacedModal';
 import { PromoBanner } from '../components/PromoBanner';
 import { SoccerBallIcon, TicketIcon } from '../components/icons';
 import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
@@ -20,6 +21,7 @@ const HomeScreen: React.FC = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<'matches' | 'standings'>('matches');
   const [isBetSlipOpen, setIsBetSlipOpen] = useState(false);
+  const [placed, setPlaced] = useState<BetPlacedInfo | null>(null);
   const { isLoggedIn, isVerified } = useAuth();
   const navigate = useNavigate();
 
@@ -89,10 +91,14 @@ const HomeScreen: React.FC = () => {
       navigate('/kyc');
       return;
     }
+    // Capture totals before placeBet clears the slip, for the success screen.
+    const count = betSlip.length;
+    const stake = betSlip.reduce((s, b) => s + b.wager, 0);
+    const payout = betSlip.reduce((s, b) => s + b.wager * b.selection.odds, 0);
     const result = placeBet();
     if (result.success) {
-      addToast(result.message, 'success');
       setIsBetSlipOpen(false);
+      setPlaced({ count, stake, payout });
     } else {
       addToast(result.message, 'error');
     }
@@ -187,6 +193,9 @@ const HomeScreen: React.FC = () => {
 
       {/* Mobile bet-slip modal */}
       {isBetSlipOpen && <BetSlip {...betSlipProps} variant="modal" />}
+
+      {/* Bet placed success screen */}
+      {placed && <BetPlacedModal info={placed} onClose={() => setPlaced(null)} />}
     </div>
   );
 }

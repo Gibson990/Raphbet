@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppOutlet } from '../hooks/useAppOutlet';
 import { SunIcon, MoonIcon, CheckCircleIcon, ShieldExclamationIcon, CameraIcon, PencilIcon } from '../components/icons';
@@ -7,6 +8,7 @@ import TermsContent from '../components/auth/TermsContent';
 
 const ProfileScreen: React.FC = () => {
   const { isDarkMode, toggleDarkMode, wallet } = useAppOutlet();
+  const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
@@ -73,6 +75,22 @@ const ProfileScreen: React.FC = () => {
             </div>
           </div>
         </div>
+
+        {/* Verification prompt (KYC is required to place bets) */}
+        {!user.isVerified && (
+          <div className="mt-5 bg-amber-500/10 border border-amber-500/30 rounded-2xl p-4 flex items-center justify-between gap-3">
+            <div className="flex items-center gap-3 min-w-0">
+              <ShieldExclamationIcon className="h-7 w-7 text-amber-500 shrink-0" />
+              <div className="min-w-0">
+                <p className="font-bold text-sm">Verify your account</p>
+                <p className="text-xs text-gray-500 dark:text-gray-400">Complete KYC to place bets and withdraw.</p>
+              </div>
+            </div>
+            <button onClick={() => navigate('/kyc')} className="bg-primary text-white text-sm font-bold px-4 py-2 rounded-xl hover:bg-primary-dark transition-colors shrink-0">
+              Verify now
+            </button>
+          </div>
+        )}
 
         {/* Settings */}
         <div className="mt-5 bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-4">
