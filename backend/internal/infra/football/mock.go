@@ -51,27 +51,28 @@ func (p *MockProvider) Matches(ctx context.Context, leagueID string) ([]domain.M
 	// Anchor the slate around the real 2026 tournament window so dates read
 	// naturally in the UI regardless of when this runs.
 	base := time.Date(2026, time.June, 11, 19, 0, 0, 0, time.UTC)
-	mk := func(id, home, away string, offset time.Duration, status domain.MatchStatus, score *domain.Score, clock string) domain.Match {
+	mk := func(id, home, away string, offset time.Duration, status domain.MatchStatus, score, ht *domain.Score, clock string) domain.Match {
 		return domain.Match{
-			ID:       id,
-			LeagueID: worldCupID,
-			Date:     base.Add(offset),
-			Status:   status,
-			HomeTeam: mockTeams[home],
-			AwayTeam: mockTeams[away],
-			Score:    score,
-			Time:     clock,
+			ID:            id,
+			LeagueID:      worldCupID,
+			Date:          base.Add(offset),
+			Status:        status,
+			HomeTeam:      mockTeams[home],
+			AwayTeam:      mockTeams[away],
+			Score:         score,
+			HalfTimeScore: ht,
+			Time:          clock,
 		}
 	}
 	return []domain.Match{
-		mk("WC-LIVE-1", "MEX", "USA", -90*time.Minute, domain.StatusLive, &domain.Score{Home: 1, Away: 1}, "63'"),
-		mk("WC-LIVE-2", "BRA", "JPN", -55*time.Minute, domain.StatusLive, &domain.Score{Home: 2, Away: 0}, "HT"),
-		mk("WC-UP-1", "ARG", "ENG", 24*time.Hour, domain.StatusUpcoming, nil, ""),
-		mk("WC-UP-2", "FRA", "GER", 27*time.Hour, domain.StatusUpcoming, nil, ""),
-		mk("WC-UP-3", "ESP", "POR", 48*time.Hour, domain.StatusUpcoming, nil, ""),
-		mk("WC-UP-4", "NED", "CAN", 51*time.Hour, domain.StatusUpcoming, nil, ""),
-		mk("WC-FT-1", "GER", "JPN", -48*time.Hour, domain.StatusFinished, &domain.Score{Home: 1, Away: 2}, "FT"),
-		mk("WC-FT-2", "ARG", "MEX", -72*time.Hour, domain.StatusFinished, &domain.Score{Home: 2, Away: 0}, "FT"),
+		mk("WC-LIVE-1", "MEX", "USA", -90*time.Minute, domain.StatusLive, &domain.Score{Home: 1, Away: 1}, nil, "63'"),
+		mk("WC-LIVE-2", "BRA", "JPN", -55*time.Minute, domain.StatusLive, &domain.Score{Home: 2, Away: 0}, &domain.Score{Home: 2, Away: 0}, "HT"),
+		mk("WC-UP-1", "ARG", "ENG", 24*time.Hour, domain.StatusUpcoming, nil, nil, ""),
+		mk("WC-UP-2", "FRA", "GER", 27*time.Hour, domain.StatusUpcoming, nil, nil, ""),
+		mk("WC-UP-3", "ESP", "POR", 48*time.Hour, domain.StatusUpcoming, nil, nil, ""),
+		mk("WC-UP-4", "NED", "CAN", 51*time.Hour, domain.StatusUpcoming, nil, nil, ""),
+		mk("WC-FT-1", "GER", "JPN", -48*time.Hour, domain.StatusFinished, &domain.Score{Home: 1, Away: 2}, &domain.Score{Home: 0, Away: 1}, "FT"),
+		mk("WC-FT-2", "ARG", "MEX", -72*time.Hour, domain.StatusFinished, &domain.Score{Home: 2, Away: 0}, &domain.Score{Home: 1, Away: 0}, "FT"),
 	}, nil
 }
 

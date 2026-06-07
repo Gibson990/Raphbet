@@ -38,6 +38,10 @@ func (s *Service) Matches(ctx context.Context, leagueID string) ([]domain.Match,
 		if matches[i].Odds == (domain.Odds{}) {
 			matches[i].Odds = s.odds.OddsFor(matches[i])
 		}
+		// Attach the full market board (1X2, O/U, BTTS, halves) for bettable matches.
+		if matches[i].Status != domain.StatusFinished {
+			matches[i].Markets = s.odds.MarketsFor(matches[i])
+		}
 	}
 	return matches, nil
 }

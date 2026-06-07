@@ -1,5 +1,6 @@
 // Package settlement settles pending bets against real, finished match results
-// (replacing the old front-end Math.random simulation). It runs on a ticker.
+// (replacing the old front-end Math.random simulation). It runs on a ticker and
+// grades every market via the shared markets evaluator.
 package settlement
 
 import (
@@ -9,14 +10,12 @@ import (
 	"time"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/markets"
 )
 
-// Outcomes maps a match id to its 1X2 result: "1" (home), "X" (draw), "2" (away).
-type Outcomes map[string]string
-
-// ResultsProvider returns outcomes for matches that have finished.
+// ResultsProvider returns results for matches that have finished, keyed by id.
 type ResultsProvider interface {
-	FinishedOutcomes(ctx context.Context) (Outcomes, error)
+	FinishedResults(ctx context.Context) (map[string]markets.Result, error)
 }
 
 // Crediter credits winnings to a wallet.
@@ -53,15 +52,14 @@ func (w *Worker) Run(ctx context.Context) {
 	}
 }
 
-// settleOnce settles every pending bet whose match has finished. Returns the
-// number of bets settled.
+// settleOnce settles every pending bet whose match has a gradeable result.
 func (w *Worker) settleOnce(ctx context.Context) int {
-	outcomes, err := w.results.FinishedOutcomes(ctx)
+	results, err := w.results.FinishedResults(ctx)
 	if err != nil {
 		log.Printf("settlement: results error: %v", err)
 		return 0
 	}
-	if len(outcomes) == 0 {
+	if len(results) == 0 {
 		return 0
 	}
 	pending, err := w.bets.ListPending()
@@ -72,11 +70,15 @@ func (w *Worker) settleOnce(ctx context.Context) int {
 
 	settled := 0
 	for _, b := range pending {
-		outcome, done := outcomes[b.Selection.MatchID]
-		if !done {
+		result, ok := results[b.Selection.MatchID]
+		if !ok {
 			continue // match not finished yet
 		}
-		if outcome == b.Selection.Market {
+		won, done := markets.Evaluate(b.Selection.Market, result)
+		if !done {
+			continue // can't grade yet (e.g. needs half-time score) or unknown code
+		}
+		if won {
 			b.Status = domain.BetWon
 			b.Payout = domain.Money(math.Round(float64(b.Wager) * b.Selection.Odds))
 			if err := w.crediter.CreditPayout(b.DeviceID, b.Payout, "Win: "+b.Selection.MarketLabel+" — "+b.Selection.MatchDescription); err != nil {

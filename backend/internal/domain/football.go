@@ -38,11 +38,25 @@ type Score struct {
 	Away int `json:"away"`
 }
 
-// Odds are the three 1X2 prices for a match.
+// Odds are the three 1X2 prices for a match (kept as a convenience field).
 type Odds struct {
 	HomeWin float64 `json:"homeWin"`
 	Draw    float64 `json:"draw"`
 	AwayWin float64 `json:"awayWin"`
+}
+
+// Outcome is one selectable price within a market (e.g. "Over 2.5" at 1.95).
+type Outcome struct {
+	Code  string  `json:"code"`  // stored on the bet, e.g. "OU_2.5_OVER", "BTTS_YES", "1"
+	Label string  `json:"label"` // human-readable, e.g. "Over 2.5"
+	Odds  float64 `json:"odds"`
+}
+
+// Market groups related outcomes (Match Result, Total Goals, BTTS, ...).
+type Market struct {
+	Key      string    `json:"key"`   // "1X2", "OU", "BTTS", "FH_OU"
+	Label    string    `json:"label"` // "Match Result", "Total Goals", ...
+	Outcomes []Outcome `json:"outcomes"`
 }
 
 // Match is a single fixture with teams, status, optional score and odds.
@@ -51,11 +65,13 @@ type Match struct {
 	LeagueID string      `json:"leagueId"`
 	Date     time.Time   `json:"date"`
 	Status   MatchStatus `json:"status"`
-	HomeTeam Team        `json:"homeTeam"`
-	AwayTeam Team        `json:"awayTeam"`
-	Score    *Score      `json:"score,omitempty"`
-	Time     string      `json:"time,omitempty"` // "HT", "FT", "68'"
-	Odds     Odds        `json:"odds"`
+	HomeTeam      Team     `json:"homeTeam"`
+	AwayTeam      Team     `json:"awayTeam"`
+	Score         *Score   `json:"score,omitempty"`
+	HalfTimeScore *Score   `json:"halfTimeScore,omitempty"`
+	Time          string   `json:"time,omitempty"` // "HT", "FT", "68'"
+	Odds          Odds     `json:"odds"`
+	Markets       []Market `json:"markets,omitempty"`
 }
 
 // Standing is one row of a league table.

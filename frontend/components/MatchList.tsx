@@ -6,10 +6,11 @@ import { SoccerBallIcon } from './icons';
 interface MatchListProps {
   matches: Match[];
   onSelectOdd: (match: Match, market: '1' | 'X' | '2', odd: number) => void;
-  selections?: Record<string, '1' | 'X' | '2'>;
+  onOpenMarkets?: (match: Match) => void;
+  selections?: Record<string, string>;
 }
 
-export const MatchList: React.FC<MatchListProps> = ({ matches, onSelectOdd, selections = {} }) => {
+export const MatchList: React.FC<MatchListProps> = ({ matches, onSelectOdd, onOpenMarkets, selections = {} }) => {
   if (matches.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center text-center py-16 px-4">
@@ -23,7 +24,7 @@ export const MatchList: React.FC<MatchListProps> = ({ matches, onSelectOdd, sele
   return (
     <div className="grid grid-cols-1 xl:grid-cols-2 gap-3">
       {matches.map((match) => (
-        <MatchCard key={match.id} match={match} onSelectOdd={onSelectOdd} selectedMarket={selections[match.id]} />
+        <MatchCard key={match.id} match={match} onSelectOdd={onSelectOdd} onOpenMarkets={onOpenMarkets} selectedMarket={selections[match.id]} />
       ))}
     </div>
   );

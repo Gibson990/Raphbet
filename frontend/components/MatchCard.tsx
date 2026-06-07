@@ -4,7 +4,8 @@ import type { Match } from '../types';
 interface MatchCardProps {
   match: Match;
   onSelectOdd: (match: Match, market: '1' | 'X' | '2', odd: number) => void;
-  selectedMarket?: '1' | 'X' | '2';
+  onOpenMarkets?: (match: Match) => void;
+  selectedMarket?: string;
 }
 
 const OddButton: React.FC<{
@@ -36,9 +37,11 @@ const TeamRow: React.FC<{ name: string; logo: string; score?: number }> = ({ nam
   </div>
 );
 
-export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelectOdd, selectedMarket }) => {
+export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelectOdd, onOpenMarkets, selectedMarket }) => {
   const isLive = match.status === 'LIVE';
   const isFinished = match.status === 'FINISHED';
+  // Count betting options beyond the three 1X2 prices shown on the card.
+  const extraMarkets = (match.markets ?? []).reduce((n, m) => n + m.outcomes.length, 0) - 3;
 
   const statusBadge = isLive ? (
     <span className="inline-flex items-center gap-1.5 text-xs font-bold text-live">
@@ -77,6 +80,15 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelectOdd, select
         <OddButton label="X Draw" odd={match.odds.draw} active={selectedMarket === 'X'} disabled={isFinished} onClick={() => onSelectOdd(match, 'X', match.odds.draw)} />
         <OddButton label="2 Away" odd={match.odds.awayWin} active={selectedMarket === '2'} disabled={isFinished} onClick={() => onSelectOdd(match, '2', match.odds.awayWin)} />
       </div>
+
+      {!isFinished && extraMarkets > 0 && onOpenMarkets && (
+        <button
+          onClick={() => onOpenMarkets(match)}
+          className="mt-2 w-full text-center text-xs font-semibold text-primary hover:underline py-1"
+        >
+          +{extraMarkets} more markets (Goals, BTTS, Halves) ›
+        </button>
+      )}
     </div>
   );
 };

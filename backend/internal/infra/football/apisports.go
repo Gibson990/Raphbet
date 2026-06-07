@@ -83,6 +83,12 @@ type fixturesResponse struct {
 			Home *int `json:"home"`
 			Away *int `json:"away"`
 		} `json:"goals"`
+		Score struct {
+			Halftime struct {
+				Home *int `json:"home"`
+				Away *int `json:"away"`
+			} `json:"halftime"`
+		} `json:"score"`
 	} `json:"response"`
 }
 
@@ -123,6 +129,9 @@ func (p *APISportsProvider) Matches(ctx context.Context, leagueID string) ([]dom
 		}
 		if f.Goals.Home != nil && f.Goals.Away != nil {
 			m.Score = &domain.Score{Home: *f.Goals.Home, Away: *f.Goals.Away}
+		}
+		if ht := f.Score.Halftime; ht.Home != nil && ht.Away != nil {
+			m.HalfTimeScore = &domain.Score{Home: *ht.Home, Away: *ht.Away}
 		}
 		matches = append(matches, m)
 	}

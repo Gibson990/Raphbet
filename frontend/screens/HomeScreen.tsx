@@ -4,10 +4,11 @@ import { MatchList } from '../components/MatchList';
 import { StandingsTable } from '../components/StandingsTable';
 import { BetSlip } from '../components/BetSlip';
 import { BetPlacedModal, type BetPlacedInfo } from '../components/BetPlacedModal';
+import { MarketsModal } from '../components/MarketsModal';
 import { PromoBanner } from '../components/PromoBanner';
 import { SoccerBallIcon, TicketIcon } from '../components/icons';
 import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
-import type { League, Match, Standing, BetSelection } from '../types';
+import type { League, Match, Standing, BetSelection, Outcome } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppOutlet } from '../hooks/useAppOutlet';
@@ -22,6 +23,7 @@ const HomeScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'matches' | 'standings'>('matches');
   const [isBetSlipOpen, setIsBetSlipOpen] = useState(false);
   const [placed, setPlaced] = useState<BetPlacedInfo | null>(null);
+  const [marketsMatch, setMarketsMatch] = useState<Match | null>(null);
   const { isLoggedIn, isVerified } = useAuth();
   const navigate = useNavigate();
 
@@ -62,22 +64,32 @@ const HomeScreen: React.FC = () => {
 
   const selectedLeague = useMemo(() => leagues.find(l => l.id === selectedLeagueId), [leagues, selectedLeagueId]);
 
-  // Map of matchId -> selected market, used to highlight active odds buttons.
+  // Map of matchId -> selected outcome code, used to highlight active buttons.
   const selections = useMemo(
-    () => Object.fromEntries(betSlip.map(b => [b.selection.matchId, b.selection.market])) as Record<string, '1' | 'X' | '2'>,
+    () => Object.fromEntries(betSlip.map(b => [b.selection.matchId, b.selection.market])) as Record<string, string>,
     [betSlip],
   );
 
-  const handleSelectOdd = (match: Match, market: '1' | 'X' | '2', odd: number) => {
-    // Guests can freely build a bet slip; auth is enforced at placement.
+  // Guests can freely build a bet slip; auth is enforced at placement.
+  const addSelection = (match: Match, code: string, label: string, odds: number) => {
     const selection: BetSelection = {
       matchId: match.id,
       matchDescription: `${match.homeTeam.name} vs ${match.awayTeam.name}`,
-      marketLabel: market === '1' ? match.homeTeam.name : market === 'X' ? 'Draw' : match.awayTeam.name,
-      market,
-      odds: odd,
+      marketLabel: label,
+      market: code,
+      odds,
     };
     addToBetSlip(selection);
+  };
+
+  const handleSelectOdd = (match: Match, market: '1' | 'X' | '2', odd: number) => {
+    const label = market === '1' ? match.homeTeam.name : market === 'X' ? 'Draw' : match.awayTeam.name;
+    addSelection(match, market, label, odd);
+  };
+
+  const handleSelectMarket = (match: Match, outcome: Outcome) => {
+    addSelection(match, outcome.code, outcome.label, outcome.odds);
+    setMarketsMatch(null);
   };
 
   const handlePlaceBet = async () => {
@@ -171,7 +183,7 @@ const HomeScreen: React.FC = () => {
                 </div>
               ) : (
                 <>
-                  {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} selections={selections} />}
+                  {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} onOpenMarkets={setMarketsMatch} selections={selections} />}
                   {activeTab === 'standings' && <StandingsTable standings={standingsForLeague} />}
                 </>
               )}
@@ -202,6 +214,16 @@ const HomeScreen: React.FC = () => {
 
       {/* Bet placed success screen */}
       {placed && <BetPlacedModal info={placed} onClose={() => setPlaced(null)} />}
+
+      {/* Full market board for a match */}
+      {marketsMatch && (
+        <MarketsModal
+          match={marketsMatch}
+          selectedCode={selections[marketsMatch.id]}
+          onSelect={handleSelectMarket}
+          onClose={() => setMarketsMatch(null)}
+        />
+      )}
     </div>
   );
 }

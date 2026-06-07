@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/markets"
 )
 
 // MatchSource is the minimal football dependency the results adapter needs.
@@ -12,8 +13,8 @@ type MatchSource interface {
 	Matches(ctx context.Context, leagueID string) ([]domain.Match, error)
 }
 
-// FootballResults derives 1X2 outcomes for finished matches from the football
-// data source, across the configured leagues.
+// FootballResults derives match results (full-time, and half-time when known)
+// for finished matches across the configured leagues.
 type FootballResults struct {
 	source    MatchSource
 	leagueIDs []string
@@ -24,9 +25,9 @@ func NewFootballResults(source MatchSource, leagueIDs ...string) *FootballResult
 	return &FootballResults{source: source, leagueIDs: leagueIDs}
 }
 
-// FinishedOutcomes returns matchID -> outcome for every finished match.
-func (r *FootballResults) FinishedOutcomes(ctx context.Context) (Outcomes, error) {
-	out := Outcomes{}
+// FinishedResults returns matchID -> result for every finished match.
+func (r *FootballResults) FinishedResults(ctx context.Context) (map[string]markets.Result, error) {
+	out := map[string]markets.Result{}
 	for _, leagueID := range r.leagueIDs {
 		matches, err := r.source.Matches(ctx, leagueID)
 		if err != nil {
@@ -36,19 +37,14 @@ func (r *FootballResults) FinishedOutcomes(ctx context.Context) (Outcomes, error
 			if m.Status != domain.StatusFinished || m.Score == nil {
 				continue
 			}
-			out[m.ID] = outcomeOf(m.Score.Home, m.Score.Away)
+			res := markets.Result{FTHome: m.Score.Home, FTAway: m.Score.Away}
+			if m.HalfTimeScore != nil {
+				res.HTHome = m.HalfTimeScore.Home
+				res.HTAway = m.HalfTimeScore.Away
+				res.HasHT = true
+			}
+			out[m.ID] = res
 		}
 	}
 	return out, nil
-}
-
-func outcomeOf(home, away int) string {
-	switch {
-	case home > away:
-		return "1"
-	case home < away:
-		return "2"
-	default:
-		return "X"
-	}
 }
