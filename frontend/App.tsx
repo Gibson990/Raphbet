@@ -10,6 +10,7 @@ import { RequireAuth } from './components/layout/RequireAuth';
 import LoginScreen from './screens/LoginScreen';
 import KycScreen from './screens/KycScreen';
 import LegalScreen from './screens/LegalScreen';
+import AdminScreen from './screens/AdminScreen';
 import HomeScreen from './screens/HomeScreen';
 import MyBetsScreen from './screens/MyBetsScreen';
 import WalletScreen from './screens/WalletScreen';
@@ -60,6 +61,9 @@ export default function App() {
             )
           }
         />
+
+        {/* Admin dashboard (self-gated by passcode) */}
+        <Route path="/admin" element={<AdminScreen />} />
 
         {/* Public legal pages */}
         <Route path="/terms" element={<LegalScreen doc="terms" />} />
