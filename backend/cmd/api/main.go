@@ -20,8 +20,11 @@ import (
 	httpdelivery "github.com/Gibson990/Raphbet/backend/internal/delivery/http"
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 	footballinfra "github.com/Gibson990/Raphbet/backend/internal/infra/football"
+	"github.com/Gibson990/Raphbet/backend/internal/infra/store"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/betting"
 	footballuc "github.com/Gibson990/Raphbet/backend/internal/usecase/football"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/odds"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/settlement"
 )
 
 func main() {
@@ -49,7 +52,15 @@ func main() {
 	oddsEngine := odds.NewGeneratedEngine(cfg.HouseMargin)
 	footballService := footballuc.New(provider, oddsEngine)
 
-	handlers := httpdelivery.NewHandlers(footballService)
+	// Wallet + bets (in-memory store for now; swappable for MongoDB later).
+	memStore := store.NewMemoryStore()
+	bettingService := betting.New(memStore, memStore, cfg.InitialBalance)
+
+	// Settlement worker: settle pending bets from real World Cup results.
+	results := settlement.NewFootballResults(footballService, "1")
+	worker := settlement.New(memStore, results, bettingService, cfg.SettlementInterval)
+
+	handlers := httpdelivery.NewHandlers(footballService, bettingService)
 	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins)
 
 	srv := &http.Server{
@@ -57,6 +68,12 @@ func main() {
 		Handler:           router,
 		ReadHeaderTimeout: 5 * time.Second,
 	}
+
+	// Settlement runs in the background until shutdown.
+	workerCtx, cancelWorker := context.WithCancel(context.Background())
+	defer cancelWorker()
+	go worker.Run(workerCtx)
+	log.Printf("settlement worker running every %s", cfg.SettlementInterval)
 
 	// Run the server and shut it down gracefully on SIGINT/SIGTERM.
 	go func() {

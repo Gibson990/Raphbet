@@ -40,8 +40,17 @@ mock FIFA World Cup data so the whole app works offline.
 | GET    | `/api/leagues`                    | Available competitions     |
 | GET    | `/api/leagues/{id}/matches`       | Fixtures + live + finished |
 | GET    | `/api/leagues/{id}/standings`     | League table               |
+| GET    | `/api/wallet`                     | Wallet (balance + history) |
+| POST   | `/api/wallet/topup`               | `{amount, method}`         |
+| POST   | `/api/wallet/withdraw`            | `{amount, method}`         |
+| GET    | `/api/bets`                       | The device's bets          |
+| POST   | `/api/bets`                       | Place bets `{items:[...]}` |
 
-World Cup league id is `1`.
+World Cup league id is `1`. Wallet/bets are identified by an `X-Device-Id`
+header (a per-device UUID) until real auth lands. A background **settlement
+worker** settles pending bets from real finished-match results and credits
+winnings. Persistence is in-memory today (resets on restart); a MongoDB
+repository is a drop-in replacement behind the same interfaces.
 
 ## Free-tier note
 

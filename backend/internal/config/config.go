@@ -40,6 +40,12 @@ type Config struct {
 	FixturesTTL  time.Duration
 	LiveTTL      time.Duration
 	StandingsTTL time.Duration
+
+	// InitialBalance seeds a new wallet (virtual credits, in TZS).
+	InitialBalance int64
+
+	// SettlementInterval is how often pending bets are settled from results.
+	SettlementInterval time.Duration
 }
 
 // Load reads configuration from the environment, applying sensible defaults.
@@ -57,7 +63,19 @@ func Load() Config {
 		FixturesTTL:      getEnvDuration("FIXTURES_TTL", time.Hour),
 		LiveTTL:          getEnvDuration("LIVE_TTL", 30*time.Second),
 		StandingsTTL:     getEnvDuration("STANDINGS_TTL", 6*time.Hour),
+
+		InitialBalance:     getEnvInt64("INITIAL_BALANCE", 1_000_000),
+		SettlementInterval: getEnvDuration("SETTLEMENT_INTERVAL", 30*time.Second),
 	}
+}
+
+func getEnvInt64(key string, fallback int64) int64 {
+	if v := os.Getenv(key); v != "" {
+		if n, err := strconv.ParseInt(v, 10, 64); err == nil {
+			return n
+		}
+	}
+	return fallback
 }
 
 // HasUpstream reports whether a real api-football key is configured.
