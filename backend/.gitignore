@@ -4,3 +4,7 @@
 # Build output
 /bin/
 *.exe
+
+# temp build artifacts
+*.exe~
+tmp_api.exe
