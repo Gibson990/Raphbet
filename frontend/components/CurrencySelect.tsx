@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { createPortal } from 'react-dom';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { ChevronDownIcon, XIcon, CheckCircleIcon } from './icons';
 
@@ -25,7 +26,7 @@ export const CurrencySelect: React.FC<{ className?: string }> = ({ className = '
         <ChevronDownIcon className="h-4 w-4 text-gray-400" />
       </button>
 
-      {open && (
+      {open && createPortal(
         <div className="fixed inset-0 z-50">
           <div className={`absolute inset-0 bg-black/40 transition-opacity duration-200 ${shown ? 'opacity-100' : 'opacity-0'}`} onClick={close} />
           <div className={`absolute right-0 top-0 h-full w-80 max-w-[85vw] bg-white dark:bg-neutral-dark-gray shadow-2xl flex flex-col transition-transform duration-200 ${shown ? 'translate-x-0' : 'translate-x-full'}`}>
@@ -58,7 +59,8 @@ export const CurrencySelect: React.FC<{ className?: string }> = ({ className = '
               Live exchange rates. Balances are held in TZS and shown in your chosen currency.
             </p>
           </div>
-        </div>
+        </div>,
+        document.body,
       )}
     </>
   );

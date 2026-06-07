@@ -25,7 +25,7 @@ export const Header: React.FC<HeaderProps> = ({ balance, onDeposit }) => {
         <div className="hidden lg:block text-sm font-semibold text-gray-400">FIFA World Cup 2026</div>
 
         <div className="flex items-center gap-2 sm:gap-3">
-          <CurrencySelect className="hidden sm:block" />
+          <CurrencySelect className="hidden sm:inline-flex" />
           {isLoggedIn ? (
             <>
               <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-dark-card px-3 py-2 rounded-xl">
