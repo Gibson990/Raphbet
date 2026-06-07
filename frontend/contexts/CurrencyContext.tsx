@@ -10,16 +10,19 @@ import React, { createContext, useContext, useState, useEffect, useCallback, Rea
 export interface Currency {
   code: string; // ISO 4217
   name: string;
+  flag: string; // flag image URL (renders on all platforms, unlike emoji flags)
 }
 
+const flag = (cc: string) => `https://flagcdn.com/w40/${cc}.png`;
+
 export const CURRENCIES: Currency[] = [
-  { code: 'TZS', name: 'Tanzanian Shilling' },
-  { code: 'USD', name: 'US Dollar' },
-  { code: 'EUR', name: 'Euro' },
-  { code: 'GBP', name: 'British Pound' },
-  { code: 'KES', name: 'Kenyan Shilling' },
-  { code: 'NGN', name: 'Nigerian Naira' },
-  { code: 'ZAR', name: 'South African Rand' },
+  { code: 'TZS', name: 'Tanzanian Shilling', flag: flag('tz') },
+  { code: 'USD', name: 'US Dollar', flag: flag('us') },
+  { code: 'EUR', name: 'Euro', flag: flag('eu') },
+  { code: 'GBP', name: 'British Pound', flag: flag('gb') },
+  { code: 'KES', name: 'Kenyan Shilling', flag: flag('ke') },
+  { code: 'NGN', name: 'Nigerian Naira', flag: flag('ng') },
+  { code: 'ZAR', name: 'South African Rand', flag: flag('za') },
 ];
 
 // Units of each currency per 1 TZS. Used until live rates load (or if they fail).

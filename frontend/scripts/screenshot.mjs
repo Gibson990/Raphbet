@@ -67,11 +67,18 @@ for (const [name, viewport] of [
   await waitForBoard(page);
   await shot(page, `home-${name}`);
   await navAndShot(page, /wallet/i, `wallet-${name}`);
-  // Prove currency conversion: switch the display currency to USD on the wallet.
-  await page.locator('select[aria-label="Display currency"]').first().selectOption('USD').catch(() => {});
-  await page.waitForTimeout(600);
+  // Open the currency drawer and switch to USD to prove conversion.
+  await page.locator('button[aria-label="Display currency"]').first().click().catch(() => {});
+  await page.waitForTimeout(300);
+  await shot(page, `currency-drawer-${name}`);
+  await page.getByText('US Dollar').click().catch(() => {});
+  await page.waitForTimeout(500);
   await shot(page, `wallet-usd-${name}`);
-  await page.locator('select[aria-label="Display currency"]').first().selectOption('TZS').catch(() => {});
+  // reset to TZS
+  await page.locator('button[aria-label="Display currency"]').first().click().catch(() => {});
+  await page.waitForTimeout(300);
+  await page.getByText('Tanzanian Shilling').click().catch(() => {});
+  await page.waitForTimeout(300);
   await navAndShot(page, /profile/i, `profile-${name}`);
   await navAndShot(page, /my bets/i, `bets-${name}`);
 

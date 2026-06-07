@@ -122,26 +122,20 @@ export const PencilIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
   </svg>
 );
 
-// FIX: Changed React.FC<React.SVGProps<SVGSVGElement>> to React.FC<React.ComponentProps<'div'>> to match the returned div element and its props.
 export const AirtelMoneyIcon: React.FC<React.ComponentProps<'div'>> = (props) => (
-  <div className="flex items-center justify-center h-8 w-12 bg-red-600 rounded-md" {...props}>
-    <span className="text-white font-extrabold text-sm">Airtel</span>
+  <div className="inline-flex items-center justify-center h-8 px-3 bg-[#ED1C24] rounded-md whitespace-nowrap" {...props}>
+    <span className="text-white font-extrabold text-xs">Airtel</span>
   </div>
 );
 
-// FIX: Changed React.FC<React.SVGProps<SVGSVGElement>> to React.FC<React.ComponentProps<'div'>> to match the returned div element and its props.
 export const MpesaIcon: React.FC<React.ComponentProps<'div'>> = (props) => (
-  <div className="flex items-center justify-center h-8 w-12 bg-green-500 rounded-md" {...props}>
-     <span className="text-white font-extrabold text-sm">M-Pesa</span>
+  <div className="inline-flex items-center justify-center h-8 px-3 bg-[#1BB24A] rounded-md whitespace-nowrap" {...props}>
+    <span className="text-white font-extrabold text-xs tracking-wide">M-PESA</span>
   </div>
 );
 
-export const StripeIcon: React.FC<React.SVGProps<SVGSVGElement>> = (props) => (
-    <svg viewBox="0 0 81 36" fill="none" xmlns="http://www.w3.org/2000/svg" className="h-8 w-12" {...props}>
-      <path d="M63.693 31.536c-2.39 1.936-5.385 2.944-9.043 2.944-8.052 0-13.84-5.24-13.84-12.728 0-8.22 6.556-12.728 14.992-12.728 3.055 0 5.632.768 7.644 2.016l-2.39 5.376c-1.408-.96-3.055-1.504-4.96-1.504-4.223 0-7.235 2.912-7.235 7.84 0 4.896 3.084 7.872 7.51 7.872 2.22 0 4.223-.736 5.56-1.792l2.756 5.2" fill="#635BFF"></path>
-      <path d="M80.09 10.152c-1.12-1.088-2.827-1.728-4.924-1.728-4.57 0-7.98 3.52-7.98 8.16 0 4.576 3.34 8.192 7.98 8.192 2.133 0 3.839-.672 4.924-1.792V24.84h5.6v-23.2h-5.6v8.512zM75.166 23c-1.947 0-3.34-1.472-3.34-3.872 0-2.4 1.393-3.872 3.34-3.872s3.34 1.472 3.34 3.872c0 2.4-1.393 3.872-3.34 3.872z" fill="#635BFF"></path>
-      <path d="M41.458 1.64h-6.24L29.354 23.08c-.627 1.504-1.018 2.24-2.188 2.24-.925 0-1.565-.608-1.565-2.016V1.64h-5.92v32.8h5.6V20.264c0-4.608 2.06-6.816 5.27-6.816 2.898 0 4.295 1.856 4.295 4.96v16.032h5.92V1.64z" fill="#635BFF"></path>
-      {/* FIX: Changed closing tag from <paintrols> to </path> */}
-      <path d="M18.232 23.32a9.125 9.125 0 01-8.192 4.032C4.54 27.352 0 23.016 0 17.224 0 11.536 4.435 7.168 10.04 7.168c3.224 0 6.09 1.536 7.834 4.064l-4.534 3.104a3.86 3.86 0 00-3.3-1.856c-2.426 0-4.15 2.016-4.15 4.736 0 2.752 1.724 4.768 4.15 4.768 1.934 0 3.118-1.088 3.445-2.624h-3.93v-4.48h8.192v13.376z" fill="#635BFF"></path>
-    </svg>
+export const StripeIcon: React.FC<React.ComponentProps<'div'>> = (props) => (
+  <div className="inline-flex items-center justify-center h-8 px-3 bg-[#635BFF] rounded-md whitespace-nowrap" {...props}>
+    <span className="text-white font-extrabold text-xs lowercase">stripe</span>
+  </div>
 );

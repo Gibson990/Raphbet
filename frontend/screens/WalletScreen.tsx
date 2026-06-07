@@ -1,10 +1,10 @@
 import React, { useState } from 'react';
-import { ChevronUpIcon, ChevronDownIcon, WalletIcon } from '../components/icons';
-import { MpesaIcon, AirtelMoneyIcon, StripeIcon } from '../components/icons';
+import { ChevronUpIcon, ChevronDownIcon, WalletIcon, LockIcon } from '../components/icons';
 import type { Transaction } from '../types';
 import { useAppOutlet } from '../hooks/useAppOutlet';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { CurrencySelect } from '../components/CurrencySelect';
+import { PaymentMethods } from '../components/wallet/PaymentMethods';
 import TopUpModal from '../components/wallet/TopUpModal';
 import WithdrawModal from '../components/wallet/WithdrawModal';
 
@@ -31,7 +31,7 @@ const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction })
 
 const WalletScreen: React.FC = () => {
   const { wallet, addToast } = useAppOutlet();
-  const { format } = useCurrency();
+  const { format, code } = useCurrency();
   const { balance, transactions, topUpWallet, withdrawFromWallet } = wallet;
   const [isTopUpOpen, setTopUpOpen] = useState(false);
   const [isWithdrawOpen, setWithdrawOpen] = useState(false);
@@ -49,8 +49,14 @@ const WalletScreen: React.FC = () => {
           <div className="absolute -right-8 -top-8 opacity-20">
             <WalletIcon className="h-40 w-40" />
           </div>
-          <p className="text-sm font-medium opacity-90">Available balance</p>
+          <div className="flex items-center justify-between">
+            <p className="text-sm font-medium opacity-90">Available balance</p>
+            <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wide">Virtual</span>
+          </div>
           <p className="text-4xl font-extrabold tracking-tight mt-1 tabular-nums">{format(balance)}</p>
+          {code !== 'TZS' && (
+            <p className="text-xs text-white/70 mt-1">≈ {balance.toLocaleString('en-US')} TZS</p>
+          )}
           <div className="grid grid-cols-2 gap-3 mt-6">
             <button onClick={() => setTopUpOpen(true)} className="bg-white text-primary font-bold py-2.5 rounded-xl hover:bg-white/90 transition-colors flex items-center justify-center gap-2">
               <ChevronUpIcon className="h-5 w-5" /> Top Up
@@ -63,15 +69,13 @@ const WalletScreen: React.FC = () => {
 
         {/* Accepted methods */}
         <div className="mt-5 bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-4">
-          <p className="text-xs font-semibold text-gray-400 uppercase mb-3">We accept</p>
-          <div className="flex flex-wrap items-center gap-3">
-            <MpesaIcon />
-            <AirtelMoneyIcon />
-            <StripeIcon />
-            <div className="flex items-center justify-center h-8 px-3 bg-amber-500 rounded-md">
-              <span className="text-white font-extrabold text-sm">Crypto</span>
-            </div>
+          <div className="flex items-center justify-between mb-3">
+            <p className="text-xs font-semibold text-gray-400 uppercase">We accept</p>
+            <span className="inline-flex items-center gap-1 text-[11px] text-gray-400">
+              <LockIcon className="h-3.5 w-3.5" /> Secured
+            </span>
           </div>
+          <PaymentMethods />
         </div>
 
         {/* Transactions */}
