@@ -12,20 +12,32 @@ is the running checklist so nothing is forgotten.
 
 ## Phase B — UI/UX overhaul (IN PROGRESS)
 - [x] Fix white screen (missing entry `<script>`), favicon + proper assets
-- [ ] **Large-screen UI totally redesigned to top-betting-app / industry
-      standard** (sidebar nav + centered markets + sticky bet slip; FanDuel /
-      bet365 / DraftKings patterns: clarity first, legible odds, stable bet slip)
-- [ ] Responsive: keep mobile bottom-nav + bet-slip modal
-- [ ] Football-only: remove any non-football sports references/branding
-- [ ] Empty states, progress bars, success/fail screens, clear error messages
-- [ ] Terms & Conditions / policies screens (reachable, required at signup)
+- [x] Large-screen UI redesigned (sidebar + centered markets + sticky bet slip)
+- [x] Responsive: mobile bottom-nav + bet-slip modal
+- [x] Football-only (FIFA World Cup)
+- [x] URL routing + public browsing, auth-gated betting (login/KYC per-action)
+- [x] Profile & Wallet redesigned; clean payment badges
+- [x] Global currency conversion (live FX) with side-drawer picker
+- [x] Empty states, bet-success screen, insufficient-balance fail state
+- [x] Error boundary (no more blank-screen crashes)
+- [x] Terms / Privacy / Responsible-Gaming pages + footer + signup consent
+- [ ] (optional later) loading skeletons, restyle StandingsTable/Toast/Top-Up
+      modals, 404 page
 
-## Phase 3 — Wallet, bets & settlement (server-side)
-- [ ] MongoDB setup (Atlas free tier) + data model (users, wallets, bets, txns)
-- [ ] Server-authoritative wallet with double-entry ledger
-- [ ] Place-bet + real settlement from match results (replace Math.random)
-- [ ] State management: optional Redis — if introduced, use it for caching too
-      (shared cache + session/rate-limit store)
+## Phase 3 — Wallet, bets & settlement (server-side)  ← CURRENT
+Identity note: auth is Phase 5, so Phase 3 keys accounts by a per-device id
+(`X-Device-Id`, a UUID stored in the browser). When Firebase auth lands, device
+accounts migrate to real users. Build with an in-memory repo first (no infra),
+then swap in MongoDB — clean architecture makes the repo a drop-in.
+- [ ] Backend domain: Wallet, Bet, Transaction (+ ledger)
+- [ ] In-memory repository (runs with zero setup) behind a repo interface
+- [ ] Server-authoritative wallet (top-up/withdraw) + place-bet usecases
+- [ ] Settlement worker: settle pending bets from real match results (HT + FT),
+      replacing the front-end Math.random simulation
+- [ ] HTTP endpoints; wire the front-end wallet hook to the backend
+- [ ] MongoDB (Atlas free tier) repository — **needs a connection string** when
+      we're ready to persist; goals markets (O/U, BTTS) plug in here
+- [ ] (optional) Redis for shared cache + rate-limit/session store
 
 ## Phase 4 — Payments & KYC
 - [ ] Wallet-first top-up: crypto (NOWPayments/BTCPay) + mobile money + card
