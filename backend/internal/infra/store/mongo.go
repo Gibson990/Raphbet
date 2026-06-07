@@ -19,6 +19,7 @@ type MongoStore struct {
 	client  *mongo.Client
 	wallets *mongo.Collection
 	bets    *mongo.Collection
+	kyc     *mongo.Collection
 }
 
 const opTimeout = 8 * time.Second
@@ -37,7 +38,7 @@ func NewMongoStore(ctx context.Context, uri, dbName string) (*MongoStore, error)
 	}
 
 	db := client.Database(dbName)
-	s := &MongoStore{client: client, wallets: db.Collection("wallets"), bets: db.Collection("bets")}
+	s := &MongoStore{client: client, wallets: db.Collection("wallets"), bets: db.Collection("bets"), kyc: db.Collection("kyc")}
 
 	// Indexes for the access patterns we use.
 	_, _ = s.bets.Indexes().CreateMany(connectCtx, []mongo.IndexModel{
@@ -127,6 +128,31 @@ func (s *MongoStore) Update(b *domain.Bet) error {
 	defer cancel()
 	_, err := s.bets.ReplaceOne(ctx, bson.M{"_id": b.ID}, toBetDoc(b), options.Replace().SetUpsert(true))
 	return err
+}
+
+// ---- kyc.Store ----
+
+func (s *MongoStore) SetVerified(deviceID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	_, err := s.kyc.ReplaceOne(ctx, bson.M{"_id": deviceID}, bson.M{"_id": deviceID, "verified": true}, options.Replace().SetUpsert(true))
+	return err
+}
+
+func (s *MongoStore) IsVerified(deviceID string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	var doc struct {
+		Verified bool `bson:"verified"`
+	}
+	err := s.kyc.FindOne(ctx, bson.M{"_id": deviceID}).Decode(&doc)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return doc.Verified, nil
 }
 
 func (s *MongoStore) find(filter bson.M) ([]*domain.Bet, error) {

@@ -1,5 +1,6 @@
-import React, { createContext, useContext, useState, ReactNode, useCallback } from 'react';
+import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
 import type { User } from '../types';
+import { fetchKycStatus } from '../services/kyc';
 
 interface AuthContextType {
   user: User | null;
@@ -23,6 +24,16 @@ const mockUser: User = {
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+
+  // On login, sync server-side KYC status so a device that already verified
+  // doesn't have to repeat it (KYC is enforced server-side per device).
+  useEffect(() => {
+    if (user && !user.isVerified) {
+      fetchKycStatus()
+        .then((s) => { if (s.verified) setUser((u) => (u ? { ...u, isVerified: true } : u)); })
+        .catch(() => { /* offline: leave unverified */ });
+    }
+  }, [user?.uid, user?.isVerified]);
 
   const login = useCallback((method: 'google' | 'phone', identifier: string) => {
     // Simulate a login

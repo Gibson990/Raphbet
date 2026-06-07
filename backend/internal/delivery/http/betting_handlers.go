@@ -7,6 +7,7 @@ import (
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/betting"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/payments"
 )
 
 // BettingService is the use case port for wallet and bets.
@@ -68,12 +69,18 @@ func (h *Handlers) topUp(w http.ResponseWriter, r *http.Request) {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
 		return
 	}
-	wallet, err := h.betting.TopUp(id, req.Amount, req.Method)
+	// Deposits flow through the payment provider (sandbox by default), which
+	// credits the wallet on capture.
+	intent, wallet, err := h.payments.Deposit(r.Context(), id, req.Amount, payments.Method(req.Method))
 	if err != nil {
 		bettingError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, wallet)
+	if wallet != nil {
+		writeJSON(w, http.StatusOK, wallet) // synchronous capture (sandbox): return updated wallet
+		return
+	}
+	writeJSON(w, http.StatusAccepted, intent) // async rails: client follows the checkout/STK flow
 }
 
 func (h *Handlers) withdraw(w http.ResponseWriter, r *http.Request) {
@@ -104,6 +111,11 @@ type placeBetRequest struct {
 func (h *Handlers) placeBet(w http.ResponseWriter, r *http.Request) {
 	id, ok := deviceID(w, r)
 	if !ok {
+		return
+	}
+	// Server-side KYC gate: never trust the client to enforce verification.
+	if verified, err := h.kyc.Status(id); err == nil && !verified {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "identity verification required"})
 		return
 	}
 	var req placeBetRequest

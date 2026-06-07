@@ -16,6 +16,7 @@ type MemoryStore struct {
 	mu      sync.RWMutex
 	wallets map[string]*domain.Wallet
 	bets    map[string]*domain.Bet
+	kyc     map[string]bool
 }
 
 // NewMemoryStore creates an empty in-memory store.
@@ -23,7 +24,23 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		wallets: make(map[string]*domain.Wallet),
 		bets:    make(map[string]*domain.Bet),
+		kyc:     make(map[string]bool),
 	}
+}
+
+// ---- kyc.Store ----
+
+func (s *MemoryStore) SetVerified(deviceID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.kyc[deviceID] = true
+	return nil
+}
+
+func (s *MemoryStore) IsVerified(deviceID string) (bool, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.kyc[deviceID], nil
 }
 
 // ---- WalletRepository ----

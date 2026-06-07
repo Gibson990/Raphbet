@@ -20,10 +20,14 @@ import (
 	httpdelivery "github.com/Gibson990/Raphbet/backend/internal/delivery/http"
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 	footballinfra "github.com/Gibson990/Raphbet/backend/internal/infra/football"
+	kycinfra "github.com/Gibson990/Raphbet/backend/internal/infra/kyc"
+	paymentsinfra "github.com/Gibson990/Raphbet/backend/internal/infra/payments"
 	"github.com/Gibson990/Raphbet/backend/internal/infra/store"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/betting"
 	footballuc "github.com/Gibson990/Raphbet/backend/internal/usecase/football"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/kyc"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/odds"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/payments"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/settlement"
 )
 
@@ -55,26 +59,34 @@ func main() {
 	// Wallet + bets persistence: MongoDB when configured, else in-memory.
 	var wallets domain.WalletRepository
 	var bets domain.BetRepository
+	var kycStore kyc.Store
 	if cfg.HasMongo() {
 		mongoStore, err := store.NewMongoStore(context.Background(), cfg.MongoURI, cfg.MongoDB)
 		if err != nil {
 			log.Fatalf("mongo connection failed: %v", err)
 		}
 		defer mongoStore.Close(context.Background())
-		wallets, bets = mongoStore, mongoStore
+		wallets, bets, kycStore = mongoStore, mongoStore, mongoStore
 		log.Printf("store: MongoDB (db %q)", cfg.MongoDB)
 	} else {
 		memStore := store.NewMemoryStore()
-		wallets, bets = memStore, memStore
+		wallets, bets, kycStore = memStore, memStore, memStore
 		log.Printf("store: in-memory (set MONGO_URI to persist)")
 	}
 	bettingService := betting.New(wallets, bets, cfg.InitialBalance)
+
+	// Payments (sandbox provider by default — real rails drop in here).
+	paymentService := payments.New(paymentsinfra.NewSandboxProvider(), bettingService)
+	log.Printf("payments: provider %q", paymentService.ProviderName())
+
+	// KYC (sandbox verifier by default — Didit drops in here).
+	kycService := kyc.New(kycinfra.NewSandboxVerifier(), kycStore)
 
 	// Settlement worker: settle pending bets from real World Cup results.
 	results := settlement.NewFootballResults(footballService, "1")
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
-	handlers := httpdelivery.NewHandlers(footballService, bettingService)
+	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService)
 	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins)
 
 	srv := &http.Server{

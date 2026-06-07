@@ -18,6 +18,10 @@ func NewRouter(h *Handlers, allowedOrigins []string) http.Handler {
 	mux.HandleFunc("GET /api/bets", h.listBets)
 	mux.HandleFunc("POST /api/bets", h.placeBet)
 
+	// KYC (identity verification).
+	mux.HandleFunc("GET /api/kyc/status", h.kycStatus)
+	mux.HandleFunc("POST /api/kyc/submit", h.kycSubmit)
+
 	// Middleware is applied outermost-first: logging wraps CORS wraps the mux.
 	return logging(cors(allowedOrigins)(mux))
 }

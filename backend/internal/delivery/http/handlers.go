@@ -22,11 +22,13 @@ type FootballService interface {
 type Handlers struct {
 	football FootballService
 	betting  BettingService
+	payments PaymentsService
+	kyc      KycService
 }
 
 // NewHandlers wires the handlers to their use case services.
-func NewHandlers(football FootballService, betting BettingService) *Handlers {
-	return &Handlers{football: football, betting: betting}
+func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService) *Handlers {
+	return &Handlers{football: football, betting: betting, payments: payments, kyc: kyc}
 }
 
 func (h *Handlers) health(w http.ResponseWriter, r *http.Request) {

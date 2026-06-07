@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { ShieldExclamationIcon } from '../components/icons';
 import { BrandLogo } from '../components/layout/BrandLogo';
 import { ToastMessage } from '../App';
+import { submitKyc } from '../services/kyc';
 
 interface KycScreenProps {
   onSubmit: () => void;
@@ -18,16 +19,24 @@ const KycScreen: React.FC<KycScreenProps> = ({ onSubmit, addToast }) => {
     if (e.target.files && e.target.files[0]) setFile(e.target.files[0]);
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!file) { addToast('Please upload your NIDA card.', 'error'); return; }
     setIsSubmitting(true);
     addToast('Submitting for verification…', 'info');
-    setTimeout(() => {
+    try {
+      const { verified } = await submitKyc(file.name);
       setIsSubmitting(false);
-      addToast('Verification successful! You can now place bets.', 'success');
-      onSubmit();
-    }, 2000);
+      if (verified) {
+        addToast('Verification successful! You can now place bets.', 'success');
+        onSubmit();
+      } else {
+        addToast('Verification could not be completed. Please try again.', 'error');
+      }
+    } catch {
+      setIsSubmitting(false);
+      addToast('Verification failed. Please try again.', 'error');
+    }
   };
 
   return (
