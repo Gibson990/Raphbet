@@ -49,8 +49,14 @@ mock FIFA World Cup data so the whole app works offline.
 World Cup league id is `1`. Wallet/bets are identified by an `X-Device-Id`
 header (a per-device UUID) until real auth lands. A background **settlement
 worker** settles pending bets from real finished-match results and credits
-winnings. Persistence is in-memory today (resets on restart); a MongoDB
-repository is a drop-in replacement behind the same interfaces.
+winnings.
+
+## Persistence
+
+Set `MONGO_URI` to use **MongoDB** (e.g. local `mongodb://localhost:27017`);
+leave it empty for an in-memory store (data resets on restart). The Mongo and
+in-memory stores implement the same repository interfaces, so it is a drop-in
+swap with no business-logic changes.
 
 ## Free-tier note
 

@@ -52,13 +52,27 @@ func main() {
 	oddsEngine := odds.NewGeneratedEngine(cfg.HouseMargin)
 	footballService := footballuc.New(provider, oddsEngine)
 
-	// Wallet + bets (in-memory store for now; swappable for MongoDB later).
-	memStore := store.NewMemoryStore()
-	bettingService := betting.New(memStore, memStore, cfg.InitialBalance)
+	// Wallet + bets persistence: MongoDB when configured, else in-memory.
+	var wallets domain.WalletRepository
+	var bets domain.BetRepository
+	if cfg.HasMongo() {
+		mongoStore, err := store.NewMongoStore(context.Background(), cfg.MongoURI, cfg.MongoDB)
+		if err != nil {
+			log.Fatalf("mongo connection failed: %v", err)
+		}
+		defer mongoStore.Close(context.Background())
+		wallets, bets = mongoStore, mongoStore
+		log.Printf("store: MongoDB (db %q)", cfg.MongoDB)
+	} else {
+		memStore := store.NewMemoryStore()
+		wallets, bets = memStore, memStore
+		log.Printf("store: in-memory (set MONGO_URI to persist)")
+	}
+	bettingService := betting.New(wallets, bets, cfg.InitialBalance)
 
 	// Settlement worker: settle pending bets from real World Cup results.
 	results := settlement.NewFootballResults(footballService, "1")
-	worker := settlement.New(memStore, results, bettingService, cfg.SettlementInterval)
+	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
 	handlers := httpdelivery.NewHandlers(footballService, bettingService)
 	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins)

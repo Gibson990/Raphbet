@@ -46,7 +46,15 @@ type Config struct {
 
 	// SettlementInterval is how often pending bets are settled from results.
 	SettlementInterval time.Duration
+
+	// MongoURI enables MongoDB persistence when set; otherwise an in-memory
+	// store is used (data resets on restart).
+	MongoURI string
+	MongoDB  string
 }
+
+// HasMongo reports whether MongoDB persistence is configured.
+func (c Config) HasMongo() bool { return c.MongoURI != "" }
 
 // Load reads configuration from the environment, applying sensible defaults.
 // It first loads a .env file (if present) so local development needs no manual
@@ -66,6 +74,9 @@ func Load() Config {
 
 		InitialBalance:     getEnvInt64("INITIAL_BALANCE", 1_000_000),
 		SettlementInterval: getEnvDuration("SETTLEMENT_INTERVAL", 30*time.Second),
+
+		MongoURI: strings.TrimSpace(os.Getenv("MONGO_URI")),
+		MongoDB:  getEnv("MONGO_DB", "raphbet"),
 	}
 }
 
