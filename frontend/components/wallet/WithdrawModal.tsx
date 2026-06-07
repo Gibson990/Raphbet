@@ -9,7 +9,7 @@ declare const html2canvas: any;
 
 interface WithdrawModalProps {
     onClose: () => void;
-    onWithdraw: (amount: number, method: string) => { success: boolean, message: string };
+    onWithdraw: (amount: number, method: string) => Promise<{ success: boolean, message: string }>;
     addToast: (message: string, type: ToastMessage['type']) => void;
     balance: number;
 }
@@ -18,16 +18,19 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
     const [amount, setAmount] = useState(0);
     const [phone, setPhone] = useState('');
     const [isSuccess, setIsSuccess] = useState(false);
+    const [submitting, setSubmitting] = useState(false);
     const [txDetails, setTxDetails] = useState({ amount: 0, phone: '', date: '', id: '' });
     const receiptRef = useRef<HTMLDivElement>(null);
 
-    const handleSubmit = () => {
+    const handleSubmit = async () => {
         if (!/^0[67]\d{8}$/.test(phone)) {
             addToast('Please enter a valid Tanzanian mobile number.', 'error');
             return;
         }
 
-        const result = onWithdraw(amount, `M-Pesa (${phone})`);
+        setSubmitting(true);
+        const result = await onWithdraw(amount, `M-Pesa (${phone})`);
+        setSubmitting(false);
         if (result.success) {
             addToast(result.message, 'success');
             setTxDetails({
@@ -99,10 +102,10 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
                 </div>
                  <button
                     onClick={handleSubmit}
-                    disabled={amount <= 0 || !phone}
+                    disabled={amount <= 0 || !phone || submitting}
                     className="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-400"
                 >
-                    Withdraw {amount > 0 ? amount.toLocaleString('en-US') : ''} Tsh
+                    {submitting ? 'Processing…' : `Withdraw ${amount > 0 ? amount.toLocaleString('en-US') : ''} Tsh`}
                 </button>
             </div>
         </Modal>

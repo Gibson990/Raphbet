@@ -5,7 +5,7 @@ import { AirtelMoneyIcon, MpesaIcon, StripeIcon } from '../icons';
 
 interface TopUpModalProps {
     onClose: () => void;
-    onTopUp: (amount: number, method: string) => { success: boolean, message: string };
+    onTopUp: (amount: number, method: string) => Promise<{ success: boolean, message: string }>;
     addToast: (message: string, type: ToastMessage['type']) => void;
 }
 
@@ -14,11 +14,14 @@ type PaymentMethod = 'Airtel Money' | 'M-Pesa' | 'Stripe';
 const TopUpModal: React.FC<TopUpModalProps> = ({ onClose, onTopUp, addToast }) => {
     const [amount, setAmount] = useState(10000);
     const [method, setMethod] = useState<PaymentMethod>('M-Pesa');
+    const [submitting, setSubmitting] = useState(false);
 
     const quickAmounts = [5000, 10000, 25000, 50000];
 
-    const handleSubmit = () => {
-        const result = onTopUp(amount, method);
+    const handleSubmit = async () => {
+        setSubmitting(true);
+        const result = await onTopUp(amount, method);
+        setSubmitting(false);
         if (result.success) {
             addToast(result.message, 'success');
             onClose();
@@ -72,10 +75,10 @@ const TopUpModal: React.FC<TopUpModalProps> = ({ onClose, onTopUp, addToast }) =
 
                 <button
                     onClick={handleSubmit}
-                    disabled={amount <= 0}
+                    disabled={amount <= 0 || submitting}
                     className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-400"
                 >
-                    Top Up {amount.toLocaleString('en-US')} Tsh
+                    {submitting ? 'Processing…' : `Top Up ${amount.toLocaleString('en-US')} Tsh`}
                 </button>
             </div>
         </Modal>

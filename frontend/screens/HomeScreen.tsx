@@ -80,7 +80,7 @@ const HomeScreen: React.FC = () => {
     addToBetSlip(selection);
   };
 
-  const handlePlaceBet = () => {
+  const handlePlaceBet = async () => {
     if (!isLoggedIn) {
       addToast('Log in to place your bet.', 'info');
       navigate('/login');
@@ -100,7 +100,7 @@ const HomeScreen: React.FC = () => {
       navigate('/wallet');
       return;
     }
-    const result = placeBet();
+    const result = await placeBet();
     if (result.success) {
       setIsBetSlipOpen(false);
       setPlaced({ count, stake, payout });

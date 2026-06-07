@@ -110,6 +110,10 @@ for (const [name, viewport] of [
   await page.getByRole('button', { name: /place bet/i }).first().click().catch(() => {});
   await page.waitForTimeout(900);
   await shot(page, 'bet-success');
+  // Open My Bets from the success modal (same context => the bet is present).
+  await page.getByRole('button', { name: /view my bets/i }).click().catch(() => {});
+  await page.waitForTimeout(800);
+  await shot(page, 'bets-active');
   await page.close();
 }
 
