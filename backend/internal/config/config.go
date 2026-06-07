@@ -55,7 +55,17 @@ type Config struct {
 	// AdminKey gates the admin dashboard API (sandbox auth). Replaced by a
 	// Firebase admin role claim when real auth lands.
 	AdminKey string
+
+	// Didit KYC. When DiditAPIKey is set, the real Didit verifier is used;
+	// otherwise the sandbox auto-approves. See docs/DIDIT_SETUP.md.
+	DiditAPIKey        string
+	DiditWorkflowID    string
+	DiditWebhookSecret string
+	DiditBaseURL       string
 }
+
+// HasDidit reports whether the real Didit KYC provider is configured.
+func (c Config) HasDidit() bool { return c.DiditAPIKey != "" }
 
 // HasMongo reports whether MongoDB persistence is configured.
 func (c Config) HasMongo() bool { return c.MongoURI != "" }
@@ -83,6 +93,11 @@ func Load() Config {
 		MongoDB:  getEnv("MONGO_DB", "raphbet"),
 
 		AdminKey: getEnv("ADMIN_KEY", "raphbet-admin"),
+
+		DiditAPIKey:        strings.TrimSpace(os.Getenv("DIDIT_API_KEY")),
+		DiditWorkflowID:    strings.TrimSpace(os.Getenv("DIDIT_WORKFLOW_ID")),
+		DiditWebhookSecret: strings.TrimSpace(os.Getenv("DIDIT_WEBHOOK_SECRET")),
+		DiditBaseURL:       getEnv("DIDIT_BASE_URL", "https://verification.didit.me"),
 	}
 }
 
