@@ -106,6 +106,30 @@ func (s *MongoStore) Save(w *domain.Wallet) error {
 	return err
 }
 
+func (s *MongoStore) AllWallets() ([]*domain.Wallet, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+
+	cur, err := s.wallets.Find(ctx, bson.M{})
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+
+	out := []*domain.Wallet{}
+	for cur.Next(ctx) {
+		var d walletDoc
+		if err := cur.Decode(&d); err != nil {
+			return nil, err
+		}
+		if d.Transactions == nil {
+			d.Transactions = []domain.Transaction{}
+		}
+		out = append(out, &domain.Wallet{DeviceID: d.DeviceID, Balance: d.Balance, Transactions: d.Transactions})
+	}
+	return out, cur.Err()
+}
+
 // ---- BetRepository ----
 
 func (s *MongoStore) Add(b *domain.Bet) error {
@@ -121,6 +145,10 @@ func (s *MongoStore) ListByDevice(deviceID string) ([]*domain.Bet, error) {
 
 func (s *MongoStore) ListPending() ([]*domain.Bet, error) {
 	return s.find(bson.M{"status": domain.BetPending})
+}
+
+func (s *MongoStore) AllBets() ([]*domain.Bet, error) {
+	return s.find(bson.M{})
 }
 
 func (s *MongoStore) Update(b *domain.Bet) error {

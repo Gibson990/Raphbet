@@ -51,6 +51,10 @@ type Config struct {
 	// store is used (data resets on restart).
 	MongoURI string
 	MongoDB  string
+
+	// AdminKey gates the admin dashboard API (sandbox auth). Replaced by a
+	// Firebase admin role claim when real auth lands.
+	AdminKey string
 }
 
 // HasMongo reports whether MongoDB persistence is configured.
@@ -77,6 +81,8 @@ func Load() Config {
 
 		MongoURI: strings.TrimSpace(os.Getenv("MONGO_URI")),
 		MongoDB:  getEnv("MONGO_DB", "raphbet"),
+
+		AdminKey: getEnv("ADMIN_KEY", "raphbet-admin"),
 	}
 }
 

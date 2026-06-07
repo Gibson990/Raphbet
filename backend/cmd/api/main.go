@@ -23,6 +23,7 @@ import (
 	kycinfra "github.com/Gibson990/Raphbet/backend/internal/infra/kyc"
 	paymentsinfra "github.com/Gibson990/Raphbet/backend/internal/infra/payments"
 	"github.com/Gibson990/Raphbet/backend/internal/infra/store"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/admin"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/betting"
 	footballuc "github.com/Gibson990/Raphbet/backend/internal/usecase/football"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/kyc"
@@ -82,11 +83,14 @@ func main() {
 	// KYC (sandbox verifier by default — Didit drops in here).
 	kycService := kyc.New(kycinfra.NewSandboxVerifier(), kycStore)
 
+	// Admin dashboard read models (computed from live data).
+	adminService := admin.New(wallets, bets, kycStore)
+
 	// Settlement worker: settle pending bets from real World Cup results.
 	results := settlement.NewFootballResults(footballService, "1")
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
-	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService)
+	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey)
 	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins)
 
 	srv := &http.Server{

@@ -61,6 +61,16 @@ func (s *MemoryStore) Save(w *domain.Wallet) error {
 	return nil
 }
 
+func (s *MemoryStore) AllWallets() ([]*domain.Wallet, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*domain.Wallet, 0, len(s.wallets))
+	for _, w := range s.wallets {
+		out = append(out, cloneWallet(w))
+	}
+	return out, nil
+}
+
 // ---- BetRepository ----
 
 func (s *MemoryStore) Add(b *domain.Bet) error {
@@ -99,6 +109,16 @@ func (s *MemoryStore) Update(b *domain.Bet) error {
 	defer s.mu.Unlock()
 	s.bets[b.ID] = cloneBet(b)
 	return nil
+}
+
+func (s *MemoryStore) AllBets() ([]*domain.Bet, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*domain.Bet, 0, len(s.bets))
+	for _, b := range s.bets {
+		out = append(out, cloneBet(b))
+	}
+	return out, nil
 }
 
 // Clones prevent callers from mutating stored data through shared pointers.

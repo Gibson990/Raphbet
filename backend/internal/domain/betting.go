@@ -65,6 +65,7 @@ type Bet struct {
 type WalletRepository interface {
 	Get(deviceID string) (*Wallet, error)
 	Save(w *Wallet) error
+	AllWallets() ([]*Wallet, error) // admin
 }
 
 // BetRepository persists bets.
@@ -73,4 +74,5 @@ type BetRepository interface {
 	ListByDevice(deviceID string) ([]*Bet, error)
 	ListPending() ([]*Bet, error)
 	Update(b *Bet) error
+	AllBets() ([]*Bet, error) // admin
 }

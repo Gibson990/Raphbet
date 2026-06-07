@@ -22,6 +22,11 @@ func NewRouter(h *Handlers, allowedOrigins []string) http.Handler {
 	mux.HandleFunc("GET /api/kyc/status", h.kycStatus)
 	mux.HandleFunc("POST /api/kyc/submit", h.kycSubmit)
 
+	// Admin dashboard (gated by the admin key / future admin role).
+	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
+	mux.HandleFunc("GET /api/admin/users", h.adminUsers)
+	mux.HandleFunc("GET /api/admin/bets", h.adminBets)
+
 	// Middleware is applied outermost-first: logging wraps CORS wraps the mux.
 	return logging(cors(allowedOrigins)(mux))
 }
