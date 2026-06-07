@@ -34,6 +34,7 @@ async function loginViaGoogle(page) {
   // clicking Google navigates client-side back to the app while staying signed in.
   await page.goto(`${BASE}/login`, { waitUntil: 'networkidle' });
   await page.waitForTimeout(400);
+  await page.locator('input[type="checkbox"]').first().check().catch(() => {}); // accept terms
   await page.getByText('Continue with Google').click().catch(() => {});
   await page.waitForTimeout(900);
 }

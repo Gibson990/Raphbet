@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { ToastMessage } from '../App';
 import { GoogleIcon } from '../components/icons';
@@ -13,9 +14,19 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
+  const [agreed, setAgreed] = useState(false);
+
+  const requireConsent = (): boolean => {
+    if (!agreed) {
+      addToast('Please accept the Terms and confirm you are 18+.', 'error');
+      return false;
+    }
+    return true;
+  };
 
   const handlePhoneSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (!requireConsent()) return;
     if (/^0[67]\d{8}$/.test(phone)) {
       setOtpSent(true);
       addToast('OTP sent! Use 1234 for this demo.', 'success');
@@ -35,6 +46,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
   };
 
   const handleGoogleLogin = () => {
+    if (!requireConsent()) return;
     login('google', 'user@raphbet.com');
     addToast('Login successful!', 'success');
   };
@@ -94,9 +106,22 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
             <button onClick={handleGoogleLogin} className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 dark:border-neutral-border rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-dark-card transition-colors">
               <GoogleIcon className="w-5 h-5" /> Continue with Google
             </button>
-          </div>
 
-          <p className="text-center text-xs text-gray-400 mt-6">By continuing you agree to our Terms &amp; Conditions. 18+ only.</p>
+            <label className="flex items-start gap-2.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={agreed}
+                onChange={(e) => setAgreed(e.target.checked)}
+                className="mt-0.5 h-4 w-4 rounded border-gray-300 text-primary focus:ring-primary"
+              />
+              <span>
+                I am 18 or older and agree to the{' '}
+                <Link to="/terms" className="text-primary hover:underline">Terms</Link>,{' '}
+                <Link to="/privacy" className="text-primary hover:underline">Privacy Policy</Link> and{' '}
+                <Link to="/responsible-gaming" className="text-primary hover:underline">Responsible Gaming</Link> policy.
+              </span>
+            </label>
+          </div>
         </div>
       </div>
     </div>

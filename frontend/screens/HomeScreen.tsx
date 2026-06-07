@@ -95,6 +95,11 @@ const HomeScreen: React.FC = () => {
     const count = betSlip.length;
     const stake = betSlip.reduce((s, b) => s + b.wager, 0);
     const payout = betSlip.reduce((s, b) => s + b.wager * b.selection.odds, 0);
+    if (stake > wallet.balance) {
+      addToast('Insufficient balance — top up to continue.', 'error');
+      navigate('/wallet');
+      return;
+    }
     const result = placeBet();
     if (result.success) {
       setIsBetSlipOpen(false);
@@ -106,6 +111,7 @@ const HomeScreen: React.FC = () => {
   
   const betSlipProps = {
     bets: betSlip,
+    balance: wallet.balance,
     onRemove: removeFromBetSlip,
     onWagerChange: updateWager,
     onPlaceBet: handlePlaceBet,

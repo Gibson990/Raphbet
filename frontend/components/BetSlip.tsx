@@ -6,6 +6,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 
 interface BetSlipProps {
   bets: Bet[];
+  balance: number;
   onRemove: (matchId: string) => void;
   onWagerChange: (matchId: string, wager: number) => void;
   onPlaceBet: () => void;
@@ -15,7 +16,7 @@ interface BetSlipProps {
 }
 
 /** Shared inner content used by both the desktop rail and the mobile modal. */
-const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange, onPlaceBet, onClear }) => {
+const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWagerChange, onPlaceBet, onClear }) => {
   const { isLoggedIn, isVerified } = useAuth();
   const { format } = useCurrency();
   const totalWager = bets.reduce((sum, bet) => sum + bet.wager, 0);
@@ -23,8 +24,9 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange,
   // Auth is enforced when placing (routes to login/KYC), so we only disable on
   // an empty/zero slip — guests can still click to be prompted to sign in.
   const isBettingDisabled = bets.length === 0 || totalWager <= 0;
+  const insufficient = isLoggedIn && isVerified && totalWager > balance;
   const needsAuth = !isLoggedIn || !isVerified;
-  const ctaLabel = !isLoggedIn ? 'Log in to bet' : !isVerified ? 'Verify to bet' : 'Place Bet';
+  const ctaLabel = !isLoggedIn ? 'Log in to bet' : !isVerified ? 'Verify to bet' : insufficient ? 'Top up to bet' : 'Place Bet';
 
   if (bets.length === 0) {
     return (
@@ -98,6 +100,9 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, onRemove, onWagerChange,
         <p className="text-center text-xs text-gray-400 mt-2">
           {!isLoggedIn ? "You'll be asked to sign in first." : 'Account verification is required to bet.'}
         </p>
+      )}
+      {insufficient && (
+        <p className="text-center text-xs text-danger mt-2">Insufficient balance — top up to place this bet.</p>
       )}
     </>
   );

@@ -9,6 +9,7 @@ import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/layout/RequireAuth';
 import LoginScreen from './screens/LoginScreen';
 import KycScreen from './screens/KycScreen';
+import LegalScreen from './screens/LegalScreen';
 import HomeScreen from './screens/HomeScreen';
 import MyBetsScreen from './screens/MyBetsScreen';
 import WalletScreen from './screens/WalletScreen';
@@ -59,6 +60,11 @@ export default function App() {
             )
           }
         />
+
+        {/* Public legal pages */}
+        <Route path="/terms" element={<LegalScreen doc="terms" />} />
+        <Route path="/privacy" element={<LegalScreen doc="privacy" />} />
+        <Route path="/responsible-gaming" element={<LegalScreen doc="responsible" />} />
 
         {/* App shell — Matches is public; wallet/bets/profile require login */}
         <Route element={<AppLayout ctx={ctx} />}>

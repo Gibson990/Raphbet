@@ -3,6 +3,7 @@ import { Outlet, useNavigate } from 'react-router-dom';
 import { Header } from '../Header';
 import { BottomNav } from '../BottomNav';
 import { Sidebar } from './Sidebar';
+import { Footer } from './Footer';
 import type { AppOutletContext } from '../../hooks/useAppOutlet';
 
 /** The authenticated app chrome: desktop sidebar, header, mobile bottom-nav.
@@ -18,9 +19,11 @@ export const AppLayout: React.FC<{ ctx: AppOutletContext }> = ({ ctx }) => {
         <Sidebar betSlipCount={betSlipCount} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
         <div className="flex-1 min-w-0">
           <Header balance={wallet.balance} onDeposit={() => navigate('/wallet')} />
-          <main className="px-3 sm:px-6 py-5 pb-24 lg:pb-8 max-w-6xl mx-auto w-full">
+          <main className="px-3 sm:px-6 py-5 max-w-6xl mx-auto w-full">
             <Outlet context={ctx} />
           </main>
+          <Footer />
+          <div className="h-16 lg:hidden" aria-hidden="true" />
         </div>
       </div>
       <BottomNav betSlipCount={betSlipCount} />
