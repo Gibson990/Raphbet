@@ -62,10 +62,19 @@ type Config struct {
 	DiditWorkflowID    string
 	DiditWebhookSecret string
 	DiditBaseURL       string
+
+	// NOWPayments crypto gateway. When NowPaymentsAPIKey is set, real crypto
+	// top-ups are used; otherwise the sandbox provider. See docs/NOWPAYMENTS_SETUP.md.
+	NowPaymentsAPIKey    string
+	NowPaymentsIPNSecret string
+	NowPaymentsBaseURL   string
 }
 
 // HasDidit reports whether the real Didit KYC provider is configured.
 func (c Config) HasDidit() bool { return c.DiditAPIKey != "" }
+
+// HasNowPayments reports whether the real crypto gateway is configured.
+func (c Config) HasNowPayments() bool { return c.NowPaymentsAPIKey != "" }
 
 // HasMongo reports whether MongoDB persistence is configured.
 func (c Config) HasMongo() bool { return c.MongoURI != "" }
@@ -98,6 +107,10 @@ func Load() Config {
 		DiditWorkflowID:    strings.TrimSpace(os.Getenv("DIDIT_WORKFLOW_ID")),
 		DiditWebhookSecret: strings.TrimSpace(os.Getenv("DIDIT_WEBHOOK_SECRET")),
 		DiditBaseURL:       getEnv("DIDIT_BASE_URL", "https://verification.didit.me"),
+
+		NowPaymentsAPIKey:    strings.TrimSpace(os.Getenv("NOWPAYMENTS_API_KEY")),
+		NowPaymentsIPNSecret: strings.TrimSpace(os.Getenv("NOWPAYMENTS_IPN_SECRET")),
+		NowPaymentsBaseURL:   getEnv("NOWPAYMENTS_BASE_URL", "https://api.nowpayments.io"),
 	}
 }
 
