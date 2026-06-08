@@ -19,6 +19,9 @@ type Config struct {
 	// AllowedOrigins is the list of front-end origins permitted by CORS.
 	AllowedOrigins []string
 
+	// RateLimitPerMin is the max requests per minute per client IP.
+	RateLimitPerMin int
+
 	// APISportsKey is the secret key for api-football (api-sports.io).
 	// When empty, the service falls back to a built-in mock provider so the
 	// app still runs locally without any credentials.
@@ -88,6 +91,7 @@ func Load() Config {
 	return Config{
 		Port:             getEnv("PORT", "8080"),
 		AllowedOrigins:   splitCSV(getEnv("ALLOWED_ORIGINS", "http://localhost:3000")),
+		RateLimitPerMin:  int(getEnvInt64("RATE_LIMIT_PER_MIN", 120)),
 		APISportsKey:     strings.TrimSpace(os.Getenv("API_SPORTS_KEY")),
 		APISportsBaseURL: getEnv("API_SPORTS_BASE_URL", "https://v3.football.api-sports.io"),
 		Season:           getEnv("SEASON", "2026"),

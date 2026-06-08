@@ -20,6 +20,7 @@ type MemoryStore struct {
 	kyc           map[string]bool
 	deviceSession map[string]string // deviceID -> sessionID
 	sessionDevice map[string]string // sessionID -> deviceID
+	processed     map[string]bool   // idempotency keys (e.g. payment ids)
 }
 
 // NewMemoryStore creates an empty in-memory store.
@@ -31,7 +32,20 @@ func NewMemoryStore() *MemoryStore {
 		kyc:           make(map[string]bool),
 		deviceSession: make(map[string]string),
 		sessionDevice: make(map[string]string),
+		processed:     make(map[string]bool),
 	}
+}
+
+// MarkProcessed records an idempotency key and reports whether it is new (true)
+// or was already processed (false).
+func (s *MemoryStore) MarkProcessed(key string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.processed[key] {
+		return false, nil
+	}
+	s.processed[key] = true
+	return true, nil
 }
 
 // ---- WithdrawalRepository ----

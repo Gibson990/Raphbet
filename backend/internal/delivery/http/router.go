@@ -1,9 +1,12 @@
 package http
 
-import "net/http"
+import (
+	"net/http"
+	"time"
+)
 
 // NewRouter builds the HTTP route table and wraps it with global middleware.
-func NewRouter(h *Handlers, allowedOrigins []string) http.Handler {
+func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.Handler {
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", h.health)
@@ -36,6 +39,7 @@ func NewRouter(h *Handlers, allowedOrigins []string) http.Handler {
 	mux.HandleFunc("POST /api/admin/withdrawals/{id}/approve", h.adminApproveWithdrawal)
 	mux.HandleFunc("POST /api/admin/withdrawals/{id}/reject", h.adminRejectWithdrawal)
 
-	// Middleware is applied outermost-first: logging wraps CORS wraps the mux.
-	return logging(cors(allowedOrigins)(mux))
+	// Middleware (outermost first): logging → CORS → rate limit → body cap → mux.
+	rl := newRateLimiter(rateLimitPerMin, time.Minute)
+	return logging(cors(allowedOrigins)(rl.middleware(maxBody(mux))))
 }

@@ -7,8 +7,10 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/payments"
@@ -17,7 +19,7 @@ import (
 // PaymentsService is the use case port for deposits.
 type PaymentsService interface {
 	Deposit(ctx context.Context, deviceID string, amount domain.Money, method payments.Method) (payments.Intent, *domain.Wallet, error)
-	ConfirmDeposit(deviceID string, amount domain.Money, method string) error
+	ConfirmDeposit(paymentID, deviceID string, amount domain.Money, method string) error
 }
 
 // nowpaymentsWebhook receives NOWPayments' signed IPN. The body is HMAC-SHA512
@@ -49,9 +51,10 @@ func (h *Handlers) nowpaymentsWebhook(w http.ResponseWriter, r *http.Request) {
 
 	status, _ := m["payment_status"].(string)
 	orderID, _ := m["order_id"].(string)
-	if status == "finished" || status == "confirmed" {
+	paymentID := asString(m["payment_id"])
+	if (status == "finished" || status == "confirmed") && paymentID != "" {
 		if deviceID, amount, ok := payments.DecodeOrderID(orderID); ok {
-			if err := h.payments.ConfirmDeposit(deviceID, amount, "Crypto top-up via NOWPayments"); err != nil {
+			if err := h.payments.ConfirmDeposit(paymentID, deviceID, amount, "Crypto top-up via NOWPayments"); err != nil {
 				writeError(w, http.StatusInternalServerError, "credit failed", err)
 				return
 			}
@@ -140,6 +143,20 @@ func (h *Handlers) kycWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// asString coerces a JSON value (string or number) to a string id.
+func asString(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case float64:
+		return strconv.FormatFloat(x, 'f', -1, 64)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", x)
+	}
 }
 
 func validHMAC(body []byte, signature, secret string) bool {

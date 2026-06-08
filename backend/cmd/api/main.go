@@ -62,17 +62,18 @@ func main() {
 	var bets domain.BetRepository
 	var withdrawals domain.WithdrawalRepository
 	var kycStore kyc.Store
+	var processed payments.Idempotency
 	if cfg.HasMongo() {
 		mongoStore, err := store.NewMongoStore(context.Background(), cfg.MongoURI, cfg.MongoDB)
 		if err != nil {
 			log.Fatalf("mongo connection failed: %v", err)
 		}
 		defer mongoStore.Close(context.Background())
-		wallets, bets, withdrawals, kycStore = mongoStore, mongoStore, mongoStore, mongoStore
+		wallets, bets, withdrawals, kycStore, processed = mongoStore, mongoStore, mongoStore, mongoStore, mongoStore
 		log.Printf("store: MongoDB (db %q)", cfg.MongoDB)
 	} else {
 		memStore := store.NewMemoryStore()
-		wallets, bets, withdrawals, kycStore = memStore, memStore, memStore, memStore
+		wallets, bets, withdrawals, kycStore, processed = memStore, memStore, memStore, memStore, memStore
 		log.Printf("store: in-memory (set MONGO_URI to persist)")
 	}
 	bettingService := betting.New(wallets, bets, withdrawals, cfg.InitialBalance)
@@ -88,7 +89,7 @@ func main() {
 	if cfg.HasNowPayments() {
 		cryptoProvider = paymentsinfra.NewNowPaymentsProvider(cfg.NowPaymentsBaseURL, cfg.NowPaymentsAPIKey, cfg.NowPaymentsCallbackURL, frontendBase+"/wallet")
 	}
-	paymentService := payments.New(cryptoProvider, paymentsinfra.NewSandboxProvider(), bettingService)
+	paymentService := payments.New(cryptoProvider, paymentsinfra.NewSandboxProvider(), bettingService, processed)
 	log.Printf("payments: crypto provider %q", paymentService.CryptoName())
 
 	// KYC: real Didit verifier when configured, else sandbox auto-approve.
@@ -110,7 +111,7 @@ func main() {
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
 	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret)
-	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins)
+	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins, cfg.RateLimitPerMin)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

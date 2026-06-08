@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"sync"
 	"time"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
@@ -24,11 +25,23 @@ type Service struct {
 	bets           domain.BetRepository
 	withdrawals    domain.WithdrawalRepository
 	initialBalance domain.Money
+	locks          sync.Map // deviceID -> *sync.Mutex, serialises wallet mutations
 }
 
 // New builds a betting service. initialBalance seeds a brand-new wallet.
 func New(wallets domain.WalletRepository, bets domain.BetRepository, withdrawals domain.WithdrawalRepository, initialBalance domain.Money) *Service {
 	return &Service{wallets: wallets, bets: bets, withdrawals: withdrawals, initialBalance: initialBalance}
+}
+
+// lock serialises all balance mutations for one device so concurrent requests
+// can't both pass a balance check and overdraw (read-modify-write race). Returns
+// the unlock func. (Single-instance; a distributed lock would replace this when
+// scaling horizontally.)
+func (s *Service) lock(deviceID string) func() {
+	m, _ := s.locks.LoadOrStore(deviceID, &sync.Mutex{})
+	mu := m.(*sync.Mutex)
+	mu.Lock()
+	return mu.Unlock
 }
 
 var ErrNoAddress = errors.New("a withdrawal address is required")
@@ -37,6 +50,7 @@ var ErrNotPending = errors.New("withdrawal is not pending")
 // RequestWithdrawal validates funds, holds them (debits the wallet) and records
 // a PENDING withdrawal for admin approval.
 func (s *Service) RequestWithdrawal(deviceID string, amount domain.Money, address string) (*domain.Withdrawal, error) {
+	defer s.lock(deviceID)()
 	if amount <= 0 {
 		return nil, ErrInvalidAmount
 	}
@@ -101,6 +115,7 @@ func (s *Service) RejectWithdrawal(id, reason string) (*domain.Withdrawal, error
 	if wd.Status != domain.WdPending {
 		return nil, ErrNotPending
 	}
+	defer s.lock(wd.DeviceID)()
 	w, err := s.Wallet(wd.DeviceID)
 	if err != nil {
 		return nil, err
@@ -132,6 +147,7 @@ func (s *Service) Wallet(deviceID string) (*domain.Wallet, error) {
 
 // TopUp adds credits to the wallet.
 func (s *Service) TopUp(deviceID string, amount domain.Money, method string) (*domain.Wallet, error) {
+	defer s.lock(deviceID)()
 	if amount <= 0 {
 		return nil, ErrInvalidAmount
 	}
@@ -146,6 +162,7 @@ func (s *Service) TopUp(deviceID string, amount domain.Money, method string) (*d
 
 // Withdraw removes credits from the wallet.
 func (s *Service) Withdraw(deviceID string, amount domain.Money, method string) (*domain.Wallet, error) {
+	defer s.lock(deviceID)()
 	if amount <= 0 {
 		return nil, ErrInvalidAmount
 	}
@@ -169,6 +186,7 @@ type PlaceItem struct {
 
 // PlaceBet validates funds, debits the wallet and records pending bets.
 func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *domain.Wallet, error) {
+	defer s.lock(deviceID)()
 	if len(items) == 0 {
 		return nil, nil, ErrEmptyBet
 	}
@@ -219,6 +237,7 @@ func (s *Service) Bets(deviceID string) ([]*domain.Bet, error) {
 
 // CreditPayout adds winnings to a wallet. Used by the settlement worker.
 func (s *Service) CreditPayout(deviceID string, amount domain.Money, desc string) error {
+	defer s.lock(deviceID)()
 	if amount <= 0 {
 		return nil
 	}

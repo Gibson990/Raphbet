@@ -21,6 +21,7 @@ type MongoStore struct {
 	bets        *mongo.Collection
 	kyc         *mongo.Collection
 	withdrawals *mongo.Collection
+	processed   *mongo.Collection
 }
 
 const opTimeout = 8 * time.Second
@@ -39,7 +40,7 @@ func NewMongoStore(ctx context.Context, uri, dbName string) (*MongoStore, error)
 	}
 
 	db := client.Database(dbName)
-	s := &MongoStore{client: client, wallets: db.Collection("wallets"), bets: db.Collection("bets"), kyc: db.Collection("kyc"), withdrawals: db.Collection("withdrawals")}
+	s := &MongoStore{client: client, wallets: db.Collection("wallets"), bets: db.Collection("bets"), kyc: db.Collection("kyc"), withdrawals: db.Collection("withdrawals"), processed: db.Collection("processed")}
 
 	// Indexes for the access patterns we use.
 	_, _ = s.bets.Indexes().CreateMany(connectCtx, []mongo.IndexModel{
@@ -51,6 +52,21 @@ func NewMongoStore(ctx context.Context, uri, dbName string) (*MongoStore, error)
 
 // Close disconnects the client.
 func (s *MongoStore) Close(ctx context.Context) error { return s.client.Disconnect(ctx) }
+
+// MarkProcessed records an idempotency key via a unique-_id insert; a duplicate
+// means it was already processed.
+func (s *MongoStore) MarkProcessed(key string) (bool, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	_, err := s.processed.InsertOne(ctx, bson.M{"_id": key, "at": time.Now()})
+	if mongo.IsDuplicateKeyError(err) {
+		return false, nil
+	}
+	if err != nil {
+		return false, err
+	}
+	return true, nil
+}
 
 // ---- BSON documents (keep domain free of storage tags) ----
 
