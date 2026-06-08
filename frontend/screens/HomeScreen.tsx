@@ -7,6 +7,7 @@ import { BetPlacedModal, type BetPlacedInfo } from '../components/BetPlacedModal
 import { MarketsModal } from '../components/MarketsModal';
 import { PromoBanner } from '../components/PromoBanner';
 import { SoccerBallIcon, TicketIcon } from '../components/icons';
+import { MatchListSkeleton, RowsSkeleton } from '../components/common/Skeleton';
 import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
 import type { League, Match, Standing, BetSelection, Outcome } from '../types';
 import { useNavigate } from 'react-router-dom';
@@ -177,10 +178,9 @@ const HomeScreen: React.FC = () => {
             </div>
             <div className="mt-4">
               {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <SoccerBallIcon className="h-10 w-10 animate-spin" />
-                  <p className="mt-3 text-sm">Loading World Cup matches…</p>
-                </div>
+                activeTab === 'standings'
+                  ? <RowsSkeleton rows={8} />
+                  : <MatchListSkeleton />
               ) : (
                 <>
                   {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} onOpenMarkets={setMarketsMatch} selections={selections} />}

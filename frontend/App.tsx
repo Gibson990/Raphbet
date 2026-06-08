@@ -15,6 +15,7 @@ import HomeScreen from './screens/HomeScreen';
 import MyBetsScreen from './screens/MyBetsScreen';
 import WalletScreen from './screens/WalletScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import NotFoundScreen from './screens/NotFoundScreen';
 
 export type ToastMessage = {
   id: number;
@@ -78,9 +79,8 @@ export default function App() {
             <Route path="wallet" element={<WalletScreen />} />
             <Route path="profile" element={<ProfileScreen />} />
           </Route>
+          <Route path="*" element={<NotFoundScreen />} />
         </Route>
-
-        <Route path="*" element={<Navigate to="/" replace />} />
       </Routes>
 
       <div className="fixed top-20 right-4 z-50 space-y-2">
