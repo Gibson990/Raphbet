@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/hmac"
 	"crypto/sha256"
+	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
 	"io"
@@ -16,6 +17,47 @@ import (
 // PaymentsService is the use case port for deposits.
 type PaymentsService interface {
 	Deposit(ctx context.Context, deviceID string, amount domain.Money, method payments.Method) (payments.Intent, *domain.Wallet, error)
+	ConfirmDeposit(deviceID string, amount domain.Money, method string) error
+}
+
+// nowpaymentsWebhook receives NOWPayments' signed IPN. The body is HMAC-SHA512
+// signed over the JSON with sorted keys; Go's json.Marshal of a map sorts keys,
+// matching NOWPayments' canonicalisation.
+func (h *Handlers) nowpaymentsWebhook(w http.ResponseWriter, r *http.Request) {
+	if h.nowpaymentsIPNSecret == "" {
+		writeJSON(w, http.StatusServiceUnavailable, map[string]string{"error": "ipn not configured"})
+		return
+	}
+	body, err := io.ReadAll(io.LimitReader(r.Body, 1<<20))
+	if err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	var m map[string]any
+	if err := json.Unmarshal(body, &m); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid payload"})
+		return
+	}
+	sorted, _ := json.Marshal(m) // keys sorted -> NOWPayments canonical form
+	mac := hmac.New(sha512.New, []byte(h.nowpaymentsIPNSecret))
+	mac.Write(sorted)
+	expected := hex.EncodeToString(mac.Sum(nil))
+	if !hmac.Equal([]byte(expected), []byte(r.Header.Get("x-nowpayments-sig"))) {
+		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid signature"})
+		return
+	}
+
+	status, _ := m["payment_status"].(string)
+	orderID, _ := m["order_id"].(string)
+	if status == "finished" || status == "confirmed" {
+		if deviceID, amount, ok := payments.DecodeOrderID(orderID); ok {
+			if err := h.payments.ConfirmDeposit(deviceID, amount, "Crypto top-up via NOWPayments"); err != nil {
+				writeError(w, http.StatusInternalServerError, "credit failed", err)
+				return
+			}
+		}
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
 }
 
 // KycService is the use case port for identity verification.

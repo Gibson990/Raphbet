@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import type { Bet, BetSelection, PlacedBet, Transaction } from '../types';
 import { fetchWallet, fetchBets, topUp, withdraw, placeBets } from '../services/wallet';
 
-type Result = { success: boolean; message: string };
+type Result = { success: boolean; message: string; redirectUrl?: string };
 
 const sortBets = (bets: PlacedBet[]): PlacedBet[] =>
   [...bets].sort((a, b) => new Date(b.placedDate).getTime() - new Date(a.placedDate).getTime());
@@ -76,9 +76,14 @@ export const useVirtualWallet = (_initialBalance?: number) => {
 
   const topUpWallet = useCallback(async (amount: number, method: string): Promise<Result> => {
     try {
-      const w = await topUp(amount, method);
-      setBalance(w.balance);
-      setTransactions(w.transactions);
+      const r = await topUp(amount, method);
+      if (r.kind === 'redirect') {
+        // Crypto: send the user to the hosted invoice; the wallet is credited
+        // by the provider webhook once payment confirms.
+        return { success: true, message: 'Opening crypto checkout…', redirectUrl: r.url };
+      }
+      setBalance(r.wallet.balance);
+      setTransactions(r.wallet.transactions);
       return { success: true, message: `Successfully added ${amount.toLocaleString('en-US')} Tsh!` };
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : 'Top up failed.' };

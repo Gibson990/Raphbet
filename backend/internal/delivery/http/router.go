@@ -18,6 +18,9 @@ func NewRouter(h *Handlers, allowedOrigins []string) http.Handler {
 	mux.HandleFunc("GET /api/bets", h.listBets)
 	mux.HandleFunc("POST /api/bets", h.placeBet)
 
+	// Crypto payment confirmation (NOWPayments IPN).
+	mux.HandleFunc("POST /api/payments/nowpayments/webhook", h.nowpaymentsWebhook)
+
 	// KYC (identity verification).
 	mux.HandleFunc("GET /api/kyc/status", h.kycStatus)
 	mux.HandleFunc("POST /api/kyc/start", h.kycStart)

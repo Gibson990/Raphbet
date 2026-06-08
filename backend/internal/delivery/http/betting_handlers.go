@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"net/http"
+	"strings"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/betting"
@@ -71,7 +72,8 @@ func (h *Handlers) topUp(w http.ResponseWriter, r *http.Request) {
 	}
 	// Deposits flow through the payment provider (sandbox by default), which
 	// credits the wallet on capture.
-	intent, wallet, err := h.payments.Deposit(r.Context(), id, req.Amount, payments.Method(req.Method))
+	method := payments.Method(strings.ToLower(strings.TrimSpace(req.Method)))
+	intent, wallet, err := h.payments.Deposit(r.Context(), id, req.Amount, method)
 	if err != nil {
 		bettingError(w, err)
 		return

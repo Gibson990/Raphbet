@@ -38,8 +38,25 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 export const fetchWallet = () => req<WalletDTO>('/api/wallet');
 export const fetchBets = () => req<PlacedBet[]>('/api/bets');
 
-export const topUp = (amount: number, method: string) =>
-  req<WalletDTO>('/api/wallet/topup', { method: 'POST', body: JSON.stringify({ amount, method }) });
+// Top-up result: synchronous providers credit immediately (wallet); async ones
+// (crypto) return a hosted checkout URL to redirect to.
+export type TopUpResult = { kind: 'wallet'; wallet: WalletDTO } | { kind: 'redirect'; url: string };
+
+export async function topUp(amount: number, method: string): Promise<TopUpResult> {
+  const res = await fetch(`${API_BASE_URL}/api/wallet/topup`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() },
+    body: JSON.stringify({ amount, method }),
+  });
+  if (!res.ok) {
+    let message = `Top up failed (${res.status})`;
+    try { const b = await res.json(); if (b?.error) message = b.error; } catch { /* ignore */ }
+    throw new Error(message);
+  }
+  const data = await res.json();
+  if (data && data.checkoutUrl) return { kind: 'redirect', url: data.checkoutUrl };
+  return { kind: 'wallet', wallet: data as WalletDTO };
+}
 
 export const withdraw = (amount: number, method: string) =>
   req<WalletDTO>('/api/wallet/withdraw', { method: 'POST', body: JSON.stringify({ amount, method }) });

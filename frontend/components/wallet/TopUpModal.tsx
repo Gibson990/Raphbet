@@ -1,85 +1,70 @@
 import React, { useState } from 'react';
 import Modal from '../common/Modal';
 import { ToastMessage } from '../../App';
-import { AirtelMoneyIcon, MpesaIcon, StripeIcon } from '../icons';
 
 interface TopUpModalProps {
     onClose: () => void;
-    onTopUp: (amount: number, method: string) => Promise<{ success: boolean, message: string }>;
+    onTopUp: (amount: number, method: string) => Promise<{ success: boolean, message: string, redirectUrl?: string }>;
     addToast: (message: string, type: ToastMessage['type']) => void;
 }
 
-type PaymentMethod = 'Airtel Money' | 'M-Pesa' | 'Stripe';
-
 const TopUpModal: React.FC<TopUpModalProps> = ({ onClose, onTopUp, addToast }) => {
     const [amount, setAmount] = useState(10000);
-    const [method, setMethod] = useState<PaymentMethod>('M-Pesa');
     const [submitting, setSubmitting] = useState(false);
-
     const quickAmounts = [5000, 10000, 25000, 50000];
 
     const handleSubmit = async () => {
         setSubmitting(true);
-        const result = await onTopUp(amount, method);
+        const result = await onTopUp(amount, 'Crypto');
         setSubmitting(false);
+        if (result.redirectUrl) {
+            window.location.href = result.redirectUrl; // hosted crypto checkout
+            return;
+        }
         if (result.success) {
             addToast(result.message, 'success');
             onClose();
         } else {
             addToast(result.message, 'error');
         }
-    }
-
-    const PaymentMethodButton: React.FC<{ type: PaymentMethod, icon: React.ReactNode }> = ({ type, icon }) => (
-        <button 
-            onClick={() => setMethod(type)}
-            className={`flex flex-col items-center justify-center p-4 border-2 rounded-lg transition-colors ${method === type ? 'border-primary' : 'border-gray-300 dark:border-gray-600'}`}
-        >
-            {icon}
-            <span className="mt-2 text-sm font-semibold">{type}</span>
-        </button>
-    );
+    };
 
     return (
-        <Modal title="Top Up Wallet" onClose={onClose}>
+        <Modal title="Deposit crypto" onClose={onClose}>
             <div className="space-y-6">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Amount (Tsh)
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Amount (Tsh)</label>
                     <input
                         type="number"
                         value={amount}
                         onChange={(e) => setAmount(parseInt(e.target.value) || 0)}
-                        className="w-full pl-4 pr-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-transparent"
+                        className="w-full pl-4 pr-2 py-2 border border-gray-300 dark:border-neutral-border rounded-md focus:ring-primary focus:border-primary bg-transparent"
                     />
                     <div className="grid grid-cols-4 gap-2 mt-2">
-                        {quickAmounts.map(qAmount => (
-                            <button key={qAmount} onClick={() => setAmount(qAmount)} className="bg-gray-200 dark:bg-neutral-gray text-sm rounded-md py-1.5 hover:bg-primary hover:text-white transition-colors">
-                                {qAmount.toLocaleString()}
+                        {quickAmounts.map(q => (
+                            <button key={q} onClick={() => setAmount(q)} className="bg-gray-200 dark:bg-neutral-dark text-sm rounded-md py-1.5 hover:bg-primary hover:text-white transition-colors">
+                                {q.toLocaleString()}
                             </button>
                         ))}
                     </div>
                 </div>
 
-                <div>
-                    <h3 className="text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        Payment Method
-                    </h3>
-                    <div className="grid grid-cols-3 gap-4">
-                        <PaymentMethodButton type="M-Pesa" icon={<MpesaIcon />} />
-                        <PaymentMethodButton type="Airtel Money" icon={<AirtelMoneyIcon />} />
-                        <PaymentMethodButton type="Stripe" icon={<StripeIcon />} />
+                <div className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-neutral-border p-3">
+                    <div className="inline-flex items-center justify-center h-9 w-9 rounded-lg bg-[#F7931A] text-white font-extrabold">₿</div>
+                    <div>
+                        <p className="text-sm font-semibold">Pay with crypto</p>
+                        <p className="text-xs text-gray-400">USDT, BTC, ETH and 200+ coins via NOWPayments</p>
                     </div>
                 </div>
 
                 <button
                     onClick={handleSubmit}
                     disabled={amount <= 0 || submitting}
-                    className="w-full bg-green-500 text-white font-bold py-3 rounded-lg hover:bg-green-600 transition-colors disabled:bg-gray-400"
+                    className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-dark transition-colors disabled:bg-gray-400"
                 >
-                    {submitting ? 'Processing…' : `Top Up ${amount.toLocaleString('en-US')} Tsh`}
+                    {submitting ? 'Opening checkout…' : 'Continue to checkout'}
                 </button>
+                <p className="text-center text-xs text-gray-400">You'll be redirected to a secure payment page. Your balance updates once the payment confirms.</p>
             </div>
         </Modal>
     );

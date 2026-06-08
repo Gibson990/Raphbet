@@ -4,9 +4,14 @@ import type { Transaction } from '../types';
 import { useAppOutlet } from '../hooks/useAppOutlet';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { CurrencySelect } from '../components/CurrencySelect';
-import { PaymentMethods } from '../components/wallet/PaymentMethods';
 import TopUpModal from '../components/wallet/TopUpModal';
 import WithdrawModal from '../components/wallet/WithdrawModal';
+
+const CryptoBadge: React.FC<{ label: string }> = ({ label }) => (
+  <div className="h-9 inline-flex items-center justify-center rounded-lg px-3 font-bold text-xs bg-gray-100 dark:bg-neutral-dark border border-gray-200 dark:border-neutral-border">
+    {label}
+  </div>
+);
 
 const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
   const { format } = useCurrency();
@@ -70,12 +75,17 @@ const WalletScreen: React.FC = () => {
         {/* Accepted methods */}
         <div className="mt-5 bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-4">
           <div className="flex items-center justify-between mb-3">
-            <p className="text-xs font-semibold text-gray-400 uppercase">We accept</p>
+            <p className="text-xs font-semibold text-gray-400 uppercase">We accept crypto</p>
             <span className="inline-flex items-center gap-1 text-[11px] text-gray-400">
               <LockIcon className="h-3.5 w-3.5" /> Secured
             </span>
           </div>
-          <PaymentMethods />
+          <div className="flex flex-wrap items-center gap-2.5">
+            <div className="h-9 inline-flex items-center justify-center rounded-lg px-3 font-extrabold text-xs text-white bg-[#26A17B]">USDT</div>
+            <div className="h-9 inline-flex items-center justify-center rounded-lg px-3 font-extrabold text-xs text-white bg-[#F7931A]">₿ BTC</div>
+            <div className="h-9 inline-flex items-center justify-center rounded-lg px-3 font-extrabold text-xs text-white bg-[#627EEA]">ETH</div>
+            <CryptoBadge label="+200 coins" />
+          </div>
         </div>
 
         {/* Transactions */}

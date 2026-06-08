@@ -76,9 +76,19 @@ func main() {
 	}
 	bettingService := betting.New(wallets, bets, cfg.InitialBalance)
 
-	// Payments (sandbox provider by default — real rails drop in here).
-	paymentService := payments.New(paymentsinfra.NewSandboxProvider(), bettingService)
-	log.Printf("payments: provider %q", paymentService.ProviderName())
+	// Front-end base URL (for provider success/return redirects).
+	frontendBase := "http://localhost:3000"
+	if len(cfg.AllowedOrigins) > 0 {
+		frontendBase = cfg.AllowedOrigins[0]
+	}
+
+	// Payments: crypto via NOWPayments when configured, sandbox otherwise.
+	var cryptoProvider payments.Provider
+	if cfg.HasNowPayments() {
+		cryptoProvider = paymentsinfra.NewNowPaymentsProvider(cfg.NowPaymentsBaseURL, cfg.NowPaymentsAPIKey, cfg.NowPaymentsCallbackURL, frontendBase+"/wallet", cfg.TZSPerUSD)
+	}
+	paymentService := payments.New(cryptoProvider, paymentsinfra.NewSandboxProvider(), bettingService)
+	log.Printf("payments: crypto provider %q", paymentService.CryptoName())
 
 	// KYC: real Didit verifier when configured, else sandbox auto-approve.
 	var kycVerifier kyc.Verifier
@@ -89,11 +99,7 @@ func main() {
 		kycVerifier = kycinfra.NewSandboxVerifier()
 		log.Printf("kyc: sandbox verifier (auto-approve)")
 	}
-	callbackBase := "http://localhost:3000"
-	if len(cfg.AllowedOrigins) > 0 {
-		callbackBase = cfg.AllowedOrigins[0]
-	}
-	kycService := kyc.New(kycVerifier, kycStore, callbackBase+"/kyc")
+	kycService := kyc.New(kycVerifier, kycStore, frontendBase+"/kyc")
 
 	// Admin dashboard read models (computed from live data).
 	adminService := admin.New(wallets, bets, kycStore)
@@ -102,7 +108,7 @@ func main() {
 	results := settlement.NewFootballResults(footballService, "1")
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
-	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey, cfg.DiditWebhookSecret)
+	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret)
 	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins)
 
 	srv := &http.Server{

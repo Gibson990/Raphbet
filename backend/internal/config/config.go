@@ -65,9 +65,11 @@ type Config struct {
 
 	// NOWPayments crypto gateway. When NowPaymentsAPIKey is set, real crypto
 	// top-ups are used; otherwise the sandbox provider. See docs/NOWPAYMENTS_SETUP.md.
-	NowPaymentsAPIKey    string
-	NowPaymentsIPNSecret string
-	NowPaymentsBaseURL   string
+	NowPaymentsAPIKey      string
+	NowPaymentsIPNSecret   string
+	NowPaymentsBaseURL     string
+	NowPaymentsCallbackURL string  // public IPN URL (e.g. an ngrok tunnel)
+	TZSPerUSD              float64 // rate to price crypto invoices in USD
 }
 
 // HasDidit reports whether the real Didit KYC provider is configured.
@@ -108,9 +110,11 @@ func Load() Config {
 		DiditWebhookSecret: strings.TrimSpace(os.Getenv("DIDIT_WEBHOOK_SECRET")),
 		DiditBaseURL:       getEnv("DIDIT_BASE_URL", "https://verification.didit.me"),
 
-		NowPaymentsAPIKey:    strings.TrimSpace(os.Getenv("NOWPAYMENTS_API_KEY")),
-		NowPaymentsIPNSecret: strings.TrimSpace(os.Getenv("NOWPAYMENTS_IPN_SECRET")),
-		NowPaymentsBaseURL:   getEnv("NOWPAYMENTS_BASE_URL", "https://api.nowpayments.io"),
+		NowPaymentsAPIKey:      strings.TrimSpace(os.Getenv("NOWPAYMENTS_API_KEY")),
+		NowPaymentsIPNSecret:   strings.TrimSpace(os.Getenv("NOWPAYMENTS_IPN_SECRET")),
+		NowPaymentsBaseURL:     getEnv("NOWPAYMENTS_BASE_URL", "https://api.nowpayments.io"),
+		NowPaymentsCallbackURL: strings.TrimSpace(os.Getenv("NOWPAYMENTS_CALLBACK_URL")),
+		TZSPerUSD:              getEnvFloat("TZS_PER_USD", 2600),
 	}
 }
 

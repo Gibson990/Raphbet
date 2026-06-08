@@ -24,14 +24,15 @@ type Handlers struct {
 	betting  BettingService
 	payments PaymentsService
 	kyc      KycService
-	admin            AdminService
-	adminKey         string
-	kycWebhookSecret string
+	admin                AdminService
+	adminKey             string
+	kycWebhookSecret     string
+	nowpaymentsIPNSecret string
 }
 
 // NewHandlers wires the handlers to their use case services.
-func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService, admin AdminService, adminKey, kycWebhookSecret string) *Handlers {
-	return &Handlers{football: football, betting: betting, payments: payments, kyc: kyc, admin: admin, adminKey: adminKey, kycWebhookSecret: kycWebhookSecret}
+func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService, admin AdminService, adminKey, kycWebhookSecret, nowpaymentsIPNSecret string) *Handlers {
+	return &Handlers{football: football, betting: betting, payments: payments, kyc: kyc, admin: admin, adminKey: adminKey, kycWebhookSecret: kycWebhookSecret, nowpaymentsIPNSecret: nowpaymentsIPNSecret}
 }
 
 func (h *Handlers) health(w http.ResponseWriter, r *http.Request) {
