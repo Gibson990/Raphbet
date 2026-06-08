@@ -1,3 +1,5 @@
+import { identityHeaders } from './device';
+
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8080';
 const KEY_STORE = 'raphbet.adminKey';
 
@@ -47,14 +49,14 @@ export interface AdminWithdrawal {
 }
 
 async function adminGet<T>(path: string, key: string): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { headers: { 'X-Admin-Key': key } });
+  const res = await fetch(`${API_BASE_URL}${path}`, { headers: { 'X-Admin-Key': key, ...(await identityHeaders()) } });
   if (res.status === 401) throw new Error('unauthorized');
   if (!res.ok) throw new Error(`request failed (${res.status})`);
   return res.json() as Promise<T>;
 }
 
 async function adminPost<T>(path: string, key: string): Promise<T> {
-  const res = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', headers: { 'X-Admin-Key': key } });
+  const res = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', headers: { 'X-Admin-Key': key, ...(await identityHeaders()) } });
   if (!res.ok) throw new Error(`request failed (${res.status})`);
   return res.json() as Promise<T>;
 }

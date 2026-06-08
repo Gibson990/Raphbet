@@ -19,6 +19,7 @@ import (
 	"github.com/Gibson990/Raphbet/backend/internal/config"
 	httpdelivery "github.com/Gibson990/Raphbet/backend/internal/delivery/http"
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
+	authinfra "github.com/Gibson990/Raphbet/backend/internal/infra/auth"
 	footballinfra "github.com/Gibson990/Raphbet/backend/internal/infra/football"
 	kycinfra "github.com/Gibson990/Raphbet/backend/internal/infra/kyc"
 	paymentsinfra "github.com/Gibson990/Raphbet/backend/internal/infra/payments"
@@ -116,6 +117,12 @@ func main() {
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
 	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret)
+	if cfg.FirebaseProjectID != "" {
+		handlers.SetAuth(authinfra.NewFirebaseVerifier(cfg.FirebaseProjectID), cfg.AdminEmails)
+		log.Printf("auth: Firebase token verification (project %q, %d admin email(s))", cfg.FirebaseProjectID, len(cfg.AdminEmails))
+	} else {
+		log.Printf("auth: device-id identity (Firebase not configured)")
+	}
 	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins, cfg.RateLimitPerMin)
 
 	srv := &http.Server{

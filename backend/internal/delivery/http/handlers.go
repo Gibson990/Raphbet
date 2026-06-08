@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"log"
 	"net/http"
+	"strings"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 )
@@ -16,6 +17,11 @@ type FootballService interface {
 	Leagues(ctx context.Context) ([]domain.League, error)
 	Matches(ctx context.Context, leagueID string) ([]domain.Match, error)
 	Standings(ctx context.Context, leagueID string) ([]domain.Standing, error)
+}
+
+// TokenVerifier verifies a Firebase ID token, returning the uid + email.
+type TokenVerifier interface {
+	Verify(ctx context.Context, idToken string) (uid, email string, err error)
 }
 
 // Handlers holds the dependencies for the HTTP handlers.
@@ -28,11 +34,52 @@ type Handlers struct {
 	adminKey             string
 	kycWebhookSecret     string
 	nowpaymentsIPNSecret string
+	auth                 TokenVerifier   // nil until Firebase is configured
+	adminEmails          map[string]bool // admin role allow-list
 }
 
 // NewHandlers wires the handlers to their use case services.
 func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService, admin AdminService, adminKey, kycWebhookSecret, nowpaymentsIPNSecret string) *Handlers {
-	return &Handlers{football: football, betting: betting, payments: payments, kyc: kyc, admin: admin, adminKey: adminKey, kycWebhookSecret: kycWebhookSecret, nowpaymentsIPNSecret: nowpaymentsIPNSecret}
+	return &Handlers{football: football, betting: betting, payments: payments, kyc: kyc, admin: admin, adminKey: adminKey, kycWebhookSecret: kycWebhookSecret, nowpaymentsIPNSecret: nowpaymentsIPNSecret, adminEmails: map[string]bool{}}
+}
+
+// SetAuth enables Firebase token verification + the admin email allow-list.
+func (h *Handlers) SetAuth(v TokenVerifier, adminEmails []string) {
+	h.auth = v
+	h.adminEmails = map[string]bool{}
+	for _, e := range adminEmails {
+		h.adminEmails[strings.ToLower(strings.TrimSpace(e))] = true
+	}
+}
+
+// bearer extracts the token from an Authorization: Bearer header.
+func bearer(r *http.Request) string {
+	const p = "Bearer "
+	if a := r.Header.Get("Authorization"); strings.HasPrefix(a, p) {
+		return strings.TrimSpace(a[len(p):])
+	}
+	return ""
+}
+
+// identity resolves the caller: a verified Firebase UID when a token is present
+// (invalid tokens are rejected), otherwise the X-Device-Id (guest fallback).
+func (h *Handlers) identity(w http.ResponseWriter, r *http.Request) (string, bool) {
+	if h.auth != nil {
+		if tok := bearer(r); tok != "" {
+			uid, _, err := h.auth.Verify(r.Context(), tok)
+			if err != nil {
+				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired session"})
+				return "", false
+			}
+			return uid, true
+		}
+	}
+	id := r.Header.Get("X-Device-Id")
+	if id == "" {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing identity"})
+		return "", false
+	}
+	return id, true
 }
 
 func (h *Handlers) health(w http.ResponseWriter, r *http.Request) {

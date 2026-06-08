@@ -72,7 +72,7 @@ type KycService interface {
 }
 
 func (h *Handlers) kycStatus(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -87,7 +87,7 @@ func (h *Handlers) kycStatus(w http.ResponseWriter, r *http.Request) {
 // kycStart begins verification: returns a hosted URL to redirect to, or
 // verified:true when already verified / the sandbox approves instantly.
 func (h *Handlers) kycStart(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -101,7 +101,7 @@ func (h *Handlers) kycStart(w http.ResponseWriter, r *http.Request) {
 
 // kycCheck polls the provider for the latest decision.
 func (h *Handlers) kycCheck(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}

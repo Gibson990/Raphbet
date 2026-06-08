@@ -35,16 +35,6 @@ func (h *Handlers) publicConfig(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-// deviceID extracts the per-device identity (until real auth lands in Phase 5).
-func deviceID(w http.ResponseWriter, r *http.Request) (string, bool) {
-	id := r.Header.Get("X-Device-Id")
-	if id == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing X-Device-Id"})
-		return "", false
-	}
-	return id, true
-}
-
 // bettingError maps domain errors to HTTP status codes.
 func bettingError(w http.ResponseWriter, err error) {
 	switch {
@@ -58,7 +48,7 @@ func bettingError(w http.ResponseWriter, err error) {
 }
 
 func (h *Handlers) getWallet(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -76,7 +66,7 @@ type amountRequest struct {
 }
 
 func (h *Handlers) topUp(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -102,7 +92,7 @@ func (h *Handlers) topUp(w http.ResponseWriter, r *http.Request) {
 
 // withdraw creates a crypto withdrawal request (held + pending admin approval).
 func (h *Handlers) withdraw(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -127,7 +117,7 @@ func (h *Handlers) withdraw(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listWithdrawals(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -147,7 +137,7 @@ type placeBetRequest struct {
 }
 
 func (h *Handlers) placeBet(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -174,7 +164,7 @@ func (h *Handlers) placeBet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listBets(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}

@@ -61,9 +61,14 @@ type Config struct {
 	MongoURI string
 	MongoDB  string
 
-	// AdminKey gates the admin dashboard API (sandbox auth). Replaced by a
-	// Firebase admin role claim when real auth lands.
+	// AdminKey gates the admin dashboard API (fallback). Firebase admin is by
+	// email allow-list (AdminEmails) once auth is configured.
 	AdminKey string
+
+	// Firebase auth. When FirebaseProjectID is set, ID tokens are verified and
+	// the UID becomes the identity; AdminEmails grants the admin role.
+	FirebaseProjectID string
+	AdminEmails       []string
 
 	// Didit KYC. When DiditAPIKey is set, the real Didit verifier is used;
 	// otherwise the sandbox auto-approves. See docs/DIDIT_SETUP.md.
@@ -117,6 +122,9 @@ func Load() Config {
 		MongoDB:  getEnv("MONGO_DB", "raphbet"),
 
 		AdminKey: getEnv("ADMIN_KEY", "raphbet-admin"),
+
+		FirebaseProjectID: strings.TrimSpace(os.Getenv("FIREBASE_PROJECT_ID")),
+		AdminEmails:       splitCSV(getEnv("ADMIN_EMAILS", "")),
 
 		DiditAPIKey:        strings.TrimSpace(os.Getenv("DIDIT_API_KEY")),
 		DiditWorkflowID:    strings.TrimSpace(os.Getenv("DIDIT_WORKFLOW_ID")),

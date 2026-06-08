@@ -2,6 +2,7 @@ package http
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/admin"
 )
@@ -13,14 +14,21 @@ type AdminService interface {
 	Bets() ([]admin.BetRow, error)
 }
 
-// requireAdmin gates admin endpoints with the configured admin key (sandbox
-// auth). Replaced by a Firebase admin role claim when real auth lands.
+// requireAdmin grants access to a verified Firebase user whose email is in the
+// admin allow-list, or (fallback) a valid shared admin key.
 func (h *Handlers) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
-	if h.adminKey == "" || r.Header.Get("X-Admin-Key") != h.adminKey {
-		writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "admin authorization required"})
-		return false
+	if h.auth != nil && len(h.adminEmails) > 0 {
+		if tok := bearer(r); tok != "" {
+			if _, email, err := h.auth.Verify(r.Context(), tok); err == nil && h.adminEmails[strings.ToLower(email)] {
+				return true
+			}
+		}
 	}
-	return true
+	if h.adminKey != "" && r.Header.Get("X-Admin-Key") == h.adminKey {
+		return true
+	}
+	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "admin authorization required"})
+	return false
 }
 
 func (h *Handlers) adminStats(w http.ResponseWriter, r *http.Request) {

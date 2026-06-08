@@ -12,10 +12,19 @@ import type { AppOutletContext } from '../../hooks/useAppOutlet';
  * the shared app data (wallet, toasts, theme).
  */
 export const RequireAuth: React.FC = () => {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, authReady } = useAuth();
   const location = useLocation();
   const ctx = useOutletContext<AppOutletContext>();
 
+  // Wait for Firebase to resolve a persisted session before deciding, so a
+  // logged-in user refreshing /wallet isn't bounced to /login.
+  if (!authReady) {
+    return (
+      <div className="flex items-center justify-center py-32 text-gray-400">
+        <div className="h-8 w-8 rounded-full border-2 border-primary border-t-transparent animate-spin" />
+      </div>
+    );
+  }
   if (!isLoggedIn) {
     return <Navigate to="/login" replace state={{ from: location }} />;
   }
