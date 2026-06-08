@@ -3,6 +3,15 @@ import { createPortal } from 'react-dom';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { ChevronDownIcon, XIcon, CheckCircleIcon } from './icons';
 
+/** Tether (USDT) mark — an SVG so it renders everywhere (no emoji/glyph dependency). */
+const UsdtMark: React.FC<{ className?: string }> = ({ className = 'h-5 w-5' }) => (
+  <svg viewBox="0 0 24 24" className={className} aria-hidden="true">
+    <circle cx="12" cy="12" r="12" fill="#26A17B" />
+    <path d="M13.4 12.9v-1.3c1.9-.1 3.3-.4 3.3-.8s-1.4-.7-3.3-.8V8.2h3V6.4H7.6v1.8h3v1.6c-1.9.1-3.3.4-3.3.8s1.4.7 3.3.8v3.6h2.8v-2.5z" fill="#fff" />
+    <path d="M12 13.6c-2.6 0-4.8-.4-5.3-1 .4-.5 2-.9 4.1-1v.9c.4 0 .8.1 1.2.1s.8 0 1.2-.1v-.9c2.1.1 3.7.5 4.1 1-.5.6-2.7 1-5.3 1z" fill="#fff" />
+  </svg>
+);
+
 /** Global currency switcher: a compact trigger that opens a right-side drawer. */
 export const CurrencySelect: React.FC<{ className?: string }> = ({ className = '' }) => {
   const { code, setCode, currencies } = useCurrency();
@@ -21,7 +30,9 @@ export const CurrencySelect: React.FC<{ className?: string }> = ({ className = '
         aria-label="Display currency"
         className={`inline-flex items-center gap-1.5 bg-gray-100 dark:bg-neutral-dark-card hover:bg-gray-200 dark:hover:bg-neutral-border rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${className}`}
       >
-        {current && <img src={current.flag} alt="" className="h-3.5 w-5 rounded-sm object-cover" />}
+        {current && (current.flag
+          ? <img src={current.flag} alt="" className="h-3.5 w-5 rounded-sm object-cover" />
+          : <UsdtMark className="h-4 w-4" />)}
         <span>{code}</span>
         <ChevronDownIcon className="h-4 w-4 text-gray-400" />
       </button>
@@ -45,7 +56,9 @@ export const CurrencySelect: React.FC<{ className?: string }> = ({ className = '
                     onClick={() => pick(c.code)}
                     className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl text-left transition-colors ${active ? 'bg-primary/10' : 'hover:bg-gray-100 dark:hover:bg-neutral-dark-card'}`}
                   >
-                    <img src={c.flag} alt="" className="h-7 w-9 rounded object-cover shadow-sm" />
+                    {c.flag
+                      ? <img src={c.flag} alt="" className="h-7 w-9 rounded object-cover shadow-sm" />
+                      : <UsdtMark className="h-7 w-7" />}
                     <div className="min-w-0 flex-1">
                       <p className={`font-semibold text-sm ${active ? 'text-primary' : ''}`}>{c.name}</p>
                       <p className="text-xs text-gray-400">{c.code}</p>
@@ -56,7 +69,7 @@ export const CurrencySelect: React.FC<{ className?: string }> = ({ className = '
               })}
             </div>
             <p className="mt-auto p-4 text-xs text-gray-400 border-t border-gray-200 dark:border-neutral-border">
-              Live exchange rates. Balances are held in TZS and shown in your chosen currency.
+              Live exchange rates. Balances are held in USDT and shown in your chosen currency.
             </p>
           </div>
         </div>,

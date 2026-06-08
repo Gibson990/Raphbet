@@ -9,13 +9,13 @@ interface TopUpModalProps {
 }
 
 const TopUpModal: React.FC<TopUpModalProps> = ({ onClose, onTopUp, addToast }) => {
-    const [amount, setAmount] = useState(10000);
+    const [amount, setAmount] = useState(10); // USD dollars
     const [submitting, setSubmitting] = useState(false);
-    const quickAmounts = [5000, 10000, 25000, 50000];
+    const quickAmounts = [5, 10, 25, 50];
 
     const handleSubmit = async () => {
         setSubmitting(true);
-        const result = await onTopUp(amount, 'Crypto');
+        const result = await onTopUp(Math.round(amount * 100), 'Crypto'); // -> USD cents
         setSubmitting(false);
         if (result.redirectUrl) {
             window.location.href = result.redirectUrl; // hosted crypto checkout
@@ -33,17 +33,17 @@ const TopUpModal: React.FC<TopUpModalProps> = ({ onClose, onTopUp, addToast }) =
         <Modal title="Deposit crypto" onClose={onClose}>
             <div className="space-y-6">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Amount (Tsh)</label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">Amount (USD)</label>
                     <input
                         type="number"
                         value={amount}
-                        onChange={(e) => setAmount(parseInt(e.target.value) || 0)}
+                        onChange={(e) => setAmount(parseFloat(e.target.value) || 0)}
                         className="w-full pl-4 pr-2 py-2 border border-gray-300 dark:border-neutral-border rounded-md focus:ring-primary focus:border-primary bg-transparent"
                     />
                     <div className="grid grid-cols-4 gap-2 mt-2">
                         {quickAmounts.map(q => (
                             <button key={q} onClick={() => setAmount(q)} className="bg-gray-200 dark:bg-neutral-dark text-sm rounded-md py-1.5 hover:bg-primary hover:text-white transition-colors">
-                                {q.toLocaleString()}
+                                ${q}
                             </button>
                         ))}
                     </div>

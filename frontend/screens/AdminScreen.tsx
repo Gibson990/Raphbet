@@ -6,7 +6,7 @@ import {
   type AdminStats, type AdminUser, type AdminBet,
 } from '../services/admin';
 
-const tzs = (n: number) => `${Math.round(n).toLocaleString('en-US')} TZS`;
+const tzs = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 const shortId = (s: string) => (s.length > 10 ? s.slice(0, 8) + '…' : s);
 
 const StatCard: React.FC<{ label: string; value: string; accent?: string }> = ({ label, value, accent }) => (

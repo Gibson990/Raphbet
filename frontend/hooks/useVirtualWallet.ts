@@ -41,9 +41,9 @@ export const useVirtualWallet = (_initialBalance?: number) => {
     setBetSlip((prev) => {
       const existing = prev.find((b) => b.selection.matchId === selection.matchId);
       if (existing) {
-        return prev.map((b) => (b.selection.matchId === selection.matchId ? { selection, wager: b.wager || 10000 } : b));
+        return prev.map((b) => (b.selection.matchId === selection.matchId ? { selection, wager: b.wager || 500 } : b));
       }
-      return [...prev, { selection, wager: 10000 }];
+      return [...prev, { selection, wager: 500 }]; // default $5 (USD cents)
     });
   }, []);
 
@@ -84,7 +84,7 @@ export const useVirtualWallet = (_initialBalance?: number) => {
       }
       setBalance(r.wallet.balance);
       setTransactions(r.wallet.transactions);
-      return { success: true, message: `Successfully added ${amount.toLocaleString('en-US')} Tsh!` };
+      return { success: true, message: `Successfully added $${(amount / 100).toFixed(2)}!` };
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : 'Top up failed.' };
     }
@@ -96,7 +96,7 @@ export const useVirtualWallet = (_initialBalance?: number) => {
       const w = await withdraw(amount, method);
       setBalance(w.balance);
       setTransactions(w.transactions);
-      return { success: true, message: `Successfully withdrew ${amount.toLocaleString('en-US')} Tsh!` };
+      return { success: true, message: `Successfully withdrew $${(amount / 100).toFixed(2)}!` };
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : 'Withdrawal failed.' };
     }

@@ -22,21 +22,17 @@ type NowPaymentsProvider struct {
 	apiKey      string
 	callbackURL string // public IPN webhook URL
 	successURL  string
-	tzsPerUSD   float64
 	http        *http.Client
 }
 
-// NewNowPaymentsProvider builds the provider.
-func NewNowPaymentsProvider(baseURL, apiKey, callbackURL, successURL string, tzsPerUSD float64) *NowPaymentsProvider {
-	if tzsPerUSD <= 0 {
-		tzsPerUSD = 2600
-	}
+// NewNowPaymentsProvider builds the provider. Wallet amounts are USD cents
+// (USDT ≡ USD), so invoices are priced directly in USD.
+func NewNowPaymentsProvider(baseURL, apiKey, callbackURL, successURL string) *NowPaymentsProvider {
 	return &NowPaymentsProvider{
 		baseURL:     strings.TrimRight(baseURL, "/"),
 		apiKey:      apiKey,
 		callbackURL: callbackURL,
 		successURL:  successURL,
-		tzsPerUSD:   tzsPerUSD,
 		http:        &http.Client{Timeout: 15 * time.Second},
 	}
 }
@@ -44,7 +40,7 @@ func NewNowPaymentsProvider(baseURL, apiKey, callbackURL, successURL string, tzs
 func (p *NowPaymentsProvider) Name() string { return "nowpayments" }
 
 func (p *NowPaymentsProvider) Charge(ctx context.Context, in uc.Intent) (uc.Intent, error) {
-	usd := math.Round(float64(in.Amount)/p.tzsPerUSD*100) / 100
+	usd := math.Round(float64(in.Amount)) / 100 // amount is USD cents
 	if usd < 1 {
 		usd = 1 // NOWPayments minimum invoice price
 	}

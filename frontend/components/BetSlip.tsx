@@ -59,13 +59,13 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWag
             </div>
             <div className="mt-2.5 flex items-center justify-between gap-2">
               <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">Tsh</span>
+                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
                 <input
                   type="number"
-                  value={wager || ''}
-                  onChange={(e) => onWagerChange(selection.matchId, parseFloat(e.target.value) || 0)}
+                  value={wager ? wager / 100 : ''}
+                  onChange={(e) => onWagerChange(selection.matchId, Math.round((parseFloat(e.target.value) || 0) * 100))}
                   placeholder="0"
-                  className="w-28 pl-9 pr-2 py-1.5 text-sm border border-gray-300 dark:border-neutral-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary bg-transparent tabular-nums"
+                  className="w-28 pl-7 pr-2 py-1.5 text-sm border border-gray-300 dark:border-neutral-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary bg-transparent tabular-nums"
                 />
               </div>
               <div className="text-right">

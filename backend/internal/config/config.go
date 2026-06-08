@@ -68,8 +68,7 @@ type Config struct {
 	NowPaymentsAPIKey      string
 	NowPaymentsIPNSecret   string
 	NowPaymentsBaseURL     string
-	NowPaymentsCallbackURL string  // public IPN URL (e.g. an ngrok tunnel)
-	TZSPerUSD              float64 // rate to price crypto invoices in USD
+	NowPaymentsCallbackURL string // public IPN URL (e.g. an ngrok tunnel)
 }
 
 // HasDidit reports whether the real Didit KYC provider is configured.
@@ -97,7 +96,7 @@ func Load() Config {
 		LiveTTL:          getEnvDuration("LIVE_TTL", 30*time.Second),
 		StandingsTTL:     getEnvDuration("STANDINGS_TTL", 6*time.Hour),
 
-		InitialBalance:     getEnvInt64("INITIAL_BALANCE", 1_000_000),
+		InitialBalance:     getEnvInt64("INITIAL_BALANCE", 0), // USD cents; 0 = no free credits (production). Set for dev.
 		SettlementInterval: getEnvDuration("SETTLEMENT_INTERVAL", 30*time.Second),
 
 		MongoURI: strings.TrimSpace(os.Getenv("MONGO_URI")),
@@ -114,7 +113,6 @@ func Load() Config {
 		NowPaymentsIPNSecret:   strings.TrimSpace(os.Getenv("NOWPAYMENTS_IPN_SECRET")),
 		NowPaymentsBaseURL:     getEnv("NOWPAYMENTS_BASE_URL", "https://api.nowpayments.io"),
 		NowPaymentsCallbackURL: strings.TrimSpace(os.Getenv("NOWPAYMENTS_CALLBACK_URL")),
-		TZSPerUSD:              getEnvFloat("TZS_PER_USD", 2600),
 	}
 }
 

@@ -13,6 +13,8 @@ const CryptoBadge: React.FC<{ label: string }> = ({ label }) => (
   </div>
 );
 
+const usdt = (cents: number) => (cents / 100).toFixed(2);
+
 const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
   const { format } = useCurrency();
   const isCredit = transaction.type === 'Payout' || transaction.type === 'Top-up';
@@ -59,14 +61,14 @@ const WalletScreen: React.FC = () => {
             <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wide">Virtual</span>
           </div>
           <p className="text-4xl font-extrabold tracking-tight mt-1 tabular-nums">{format(balance)}</p>
-          {code !== 'TZS' && (
-            <p className="text-xs text-white/70 mt-1">≈ {balance.toLocaleString('en-US')} TZS</p>
+          {code !== 'USDT' && code !== 'USD' && (
+            <p className="text-xs text-white/70 mt-1">≈ {usdt(balance)} USDT</p>
           )}
           <div className="grid grid-cols-2 gap-3 mt-6">
             <button onClick={() => setTopUpOpen(true)} className="bg-white text-primary font-bold py-2.5 rounded-xl hover:bg-white/90 transition-colors flex items-center justify-center gap-2">
               <ChevronUpIcon className="h-5 w-5" /> Top Up
             </button>
-            <button onClick={() => setWithdrawOpen(true)} className="bg-black/20 text-white font-bold py-2.5 rounded-xl hover:bg-black/30 transition-colors flex items-center justify-center gap-2">
+            <button onClick={() => addToast('Crypto withdrawals are coming soon.', 'info')} className="bg-black/20 text-white font-bold py-2.5 rounded-xl hover:bg-black/30 transition-colors flex items-center justify-center gap-2">
               <ChevronDownIcon className="h-5 w-5" /> Withdraw
             </button>
           </div>

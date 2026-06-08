@@ -85,7 +85,7 @@ func main() {
 	// Payments: crypto via NOWPayments when configured, sandbox otherwise.
 	var cryptoProvider payments.Provider
 	if cfg.HasNowPayments() {
-		cryptoProvider = paymentsinfra.NewNowPaymentsProvider(cfg.NowPaymentsBaseURL, cfg.NowPaymentsAPIKey, cfg.NowPaymentsCallbackURL, frontendBase+"/wallet", cfg.TZSPerUSD)
+		cryptoProvider = paymentsinfra.NewNowPaymentsProvider(cfg.NowPaymentsBaseURL, cfg.NowPaymentsAPIKey, cfg.NowPaymentsCallbackURL, frontendBase+"/wallet")
 	}
 	paymentService := payments.New(cryptoProvider, paymentsinfra.NewSandboxProvider(), bettingService)
 	log.Printf("payments: crypto provider %q", paymentService.CryptoName())
