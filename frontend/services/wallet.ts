@@ -58,8 +58,16 @@ export async function topUp(amount: number, method: string): Promise<TopUpResult
   return { kind: 'wallet', wallet: data as WalletDTO };
 }
 
-export const withdraw = (amount: number, method: string) =>
-  req<WalletDTO>('/api/wallet/withdraw', { method: 'POST', body: JSON.stringify({ amount, method }) });
+export interface Withdrawal {
+  id: string;
+  amount: number;
+  address: string;
+  status: 'PENDING' | 'PAID' | 'REJECTED';
+  createdDate: string;
+}
+
+export const requestWithdrawal = (amount: number, address: string) =>
+  req<Withdrawal>('/api/wallet/withdraw', { method: 'POST', body: JSON.stringify({ amount, address }) });
 
 export const placeBets = (items: PlaceItem[]) =>
   req<{ bets: PlacedBet[]; wallet: WalletDTO }>('/api/bets', { method: 'POST', body: JSON.stringify({ items }) });

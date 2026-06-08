@@ -68,7 +68,7 @@ const WalletScreen: React.FC = () => {
             <button onClick={() => setTopUpOpen(true)} className="bg-white text-primary font-bold py-2.5 rounded-xl hover:bg-white/90 transition-colors flex items-center justify-center gap-2">
               <ChevronUpIcon className="h-5 w-5" /> Top Up
             </button>
-            <button onClick={() => addToast('Crypto withdrawals are coming soon.', 'info')} className="bg-black/20 text-white font-bold py-2.5 rounded-xl hover:bg-black/30 transition-colors flex items-center justify-center gap-2">
+            <button onClick={() => setWithdrawOpen(true)} className="bg-black/20 text-white font-bold py-2.5 rounded-xl hover:bg-black/30 transition-colors flex items-center justify-center gap-2">
               <ChevronDownIcon className="h-5 w-5" /> Withdraw
             </button>
           </div>

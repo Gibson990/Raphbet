@@ -61,6 +61,36 @@ type Bet struct {
 	Payout     Money        `json:"payout"`
 }
 
+// WithdrawalStatus is the lifecycle of a withdrawal request.
+type WithdrawalStatus string
+
+const (
+	WdPending  WithdrawalStatus = "PENDING"  // awaiting admin approval (funds held)
+	WdPaid     WithdrawalStatus = "PAID"      // approved + paid out
+	WdRejected WithdrawalStatus = "REJECTED"  // rejected, funds refunded
+)
+
+// Withdrawal is a request to cash out to a crypto address.
+type Withdrawal struct {
+	ID          string           `json:"id"`
+	DeviceID    string           `json:"-"`
+	Amount      Money            `json:"amount"`  // USD cents
+	Address     string           `json:"address"` // destination crypto address
+	Status      WithdrawalStatus `json:"status"`
+	CreatedDate time.Time        `json:"createdDate"`
+	Note        string           `json:"note,omitempty"` // payout id or reason
+}
+
+// WithdrawalRepository persists withdrawal requests. (Distinct method names so a
+// single store type can also implement the bet/wallet repositories.)
+type WithdrawalRepository interface {
+	AddWithdrawal(w *Withdrawal) error
+	GetWithdrawal(id string) (*Withdrawal, error)
+	ListWithdrawalsByDevice(deviceID string) ([]*Withdrawal, error)
+	ListPendingWithdrawals() ([]*Withdrawal, error)
+	UpdateWithdrawal(w *Withdrawal) error
+}
+
 // WalletRepository persists wallets. Get returns (nil, nil) when not found.
 type WalletRepository interface {
 	Get(deviceID string) (*Wallet, error)

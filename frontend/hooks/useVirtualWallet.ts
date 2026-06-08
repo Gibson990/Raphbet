@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Bet, BetSelection, PlacedBet, Transaction } from '../types';
-import { fetchWallet, fetchBets, topUp, withdraw, placeBets } from '../services/wallet';
+import { fetchWallet, fetchBets, topUp, requestWithdrawal, placeBets } from '../services/wallet';
 
 type Result = { success: boolean; message: string; redirectUrl?: string };
 
@@ -90,17 +90,17 @@ export const useVirtualWallet = (_initialBalance?: number) => {
     }
   }, []);
 
-  const withdrawFromWallet = useCallback(async (amount: number, method: string): Promise<Result> => {
+  const withdrawFromWallet = useCallback(async (amount: number, address: string): Promise<Result> => {
     if (amount <= 0) return { success: false, message: 'Withdrawal amount must be positive.' };
+    if (!address) return { success: false, message: 'A withdrawal address is required.' };
     try {
-      const w = await withdraw(amount, method);
-      setBalance(w.balance);
-      setTransactions(w.transactions);
-      return { success: true, message: `Successfully withdrew $${(amount / 100).toFixed(2)}!` };
+      await requestWithdrawal(amount, address);
+      await refresh(); // balance is held immediately
+      return { success: true, message: `Withdrawal of $${(amount / 100).toFixed(2)} requested — pending review.` };
     } catch (err) {
       return { success: false, message: err instanceof Error ? err.message : 'Withdrawal failed.' };
     }
-  }, []);
+  }, [refresh]);
 
   return {
     balance,

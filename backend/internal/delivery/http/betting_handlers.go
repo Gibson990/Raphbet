@@ -11,13 +11,16 @@ import (
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/payments"
 )
 
-// BettingService is the use case port for wallet and bets.
+// BettingService is the use case port for wallet, bets and withdrawals.
 type BettingService interface {
 	Wallet(deviceID string) (*domain.Wallet, error)
-	TopUp(deviceID string, amount domain.Money, method string) (*domain.Wallet, error)
-	Withdraw(deviceID string, amount domain.Money, method string) (*domain.Wallet, error)
 	PlaceBet(deviceID string, items []betting.PlaceItem) ([]*domain.Bet, *domain.Wallet, error)
 	Bets(deviceID string) ([]*domain.Bet, error)
+	RequestWithdrawal(deviceID string, amount domain.Money, address string) (*domain.Withdrawal, error)
+	Withdrawals(deviceID string) ([]*domain.Withdrawal, error)
+	PendingWithdrawals() ([]*domain.Withdrawal, error)
+	ApproveWithdrawal(id string) (*domain.Withdrawal, error)
+	RejectWithdrawal(id, reason string) (*domain.Withdrawal, error)
 }
 
 // deviceID extracts the per-device identity (until real auth lands in Phase 5).
@@ -35,7 +38,7 @@ func bettingError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, betting.ErrInsufficient):
 		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "insufficient balance"})
-	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet):
+	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
 		writeError(w, http.StatusInternalServerError, "betting operation failed", err)
@@ -85,22 +88,43 @@ func (h *Handlers) topUp(w http.ResponseWriter, r *http.Request) {
 	writeJSON(w, http.StatusAccepted, intent) // async rails: client follows the checkout/STK flow
 }
 
+// withdraw creates a crypto withdrawal request (held + pending admin approval).
 func (h *Handlers) withdraw(w http.ResponseWriter, r *http.Request) {
 	id, ok := deviceID(w, r)
 	if !ok {
 		return
 	}
-	var req amountRequest
+	if verified, err := h.kyc.Status(id); err == nil && !verified {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "identity verification required"})
+		return
+	}
+	var req struct {
+		Amount  domain.Money `json:"amount"`
+		Address string       `json:"address"`
+	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
 		return
 	}
-	wallet, err := h.betting.Withdraw(id, req.Amount, req.Method)
+	wd, err := h.betting.RequestWithdrawal(id, req.Amount, strings.TrimSpace(req.Address))
 	if err != nil {
 		bettingError(w, err)
 		return
 	}
-	writeJSON(w, http.StatusOK, wallet)
+	writeJSON(w, http.StatusCreated, wd)
+}
+
+func (h *Handlers) listWithdrawals(w http.ResponseWriter, r *http.Request) {
+	id, ok := deviceID(w, r)
+	if !ok {
+		return
+	}
+	wds, err := h.betting.Withdrawals(id)
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load withdrawals", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wds)
 }
 
 type placeBetRequest struct {

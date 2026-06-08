@@ -1,112 +1,65 @@
-import React, { useState, useRef } from 'react';
+import React, { useState } from 'react';
 import Modal from '../common/Modal';
 import { ToastMessage } from '../../App';
-import WithdrawReceipt from './WithdrawReceipt';
-
-// Declare jsPDF and html2canvas from global scope
-declare const jspdf: any;
-declare const html2canvas: any;
 
 interface WithdrawModalProps {
     onClose: () => void;
-    onWithdraw: (amount: number, method: string) => Promise<{ success: boolean, message: string }>;
+    onWithdraw: (amount: number, address: string) => Promise<{ success: boolean, message: string }>;
     addToast: (message: string, type: ToastMessage['type']) => void;
-    balance: number;
+    balance: number; // USD cents
 }
 
 const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addToast, balance }) => {
-    const [amount, setAmount] = useState(0);
-    const [phone, setPhone] = useState('');
-    const [isSuccess, setIsSuccess] = useState(false);
+    const [amount, setAmount] = useState(0); // USD dollars
+    const [address, setAddress] = useState('');
     const [submitting, setSubmitting] = useState(false);
-    const [txDetails, setTxDetails] = useState({ amount: 0, phone: '', date: '', id: '' });
-    const receiptRef = useRef<HTMLDivElement>(null);
+    const maxUsd = balance / 100;
 
     const handleSubmit = async () => {
-        if (!/^0[67]\d{8}$/.test(phone)) {
-            addToast('Please enter a valid Tanzanian mobile number.', 'error');
-            return;
-        }
-
+        if (!address.trim()) { addToast('Enter your USDT (TRC-20) wallet address.', 'error'); return; }
         setSubmitting(true);
-        const result = await onWithdraw(amount, `M-Pesa (${phone})`);
+        const result = await onWithdraw(Math.round(amount * 100), address.trim());
         setSubmitting(false);
         if (result.success) {
             addToast(result.message, 'success');
-            setTxDetails({
-                amount: amount,
-                phone: phone,
-                date: new Date().toLocaleString(),
-                id: `WD-${Date.now()}`
-            });
-            setIsSuccess(true);
+            onClose();
         } else {
             addToast(result.message, 'error');
         }
     };
 
-    const handleDownloadPdf = async () => {
-        if (!receiptRef.current) return;
-        const canvas = await html2canvas(receiptRef.current, { scale: 2 });
-        const imgData = canvas.toDataURL('image/png');
-        const { jsPDF } = jspdf;
-        const pdf = new jsPDF({
-            orientation: 'portrait',
-            unit: 'px',
-            format: [canvas.width, canvas.height]
-        });
-        pdf.addImage(imgData, 'PNG', 0, 0, canvas.width, canvas.height);
-        pdf.save(`RaphBet-Receipt-${txDetails.id}.pdf`);
-    };
-
-    if (isSuccess) {
-        return (
-            <Modal title="Withdrawal Successful" onClose={onClose}>
-                <div id="receipt" ref={receiptRef} className="bg-white p-4">
-                  <WithdrawReceipt {...txDetails} />
-                </div>
-                <div className="mt-6 flex space-x-4">
-                    <button onClick={handleDownloadPdf} className="flex-1 bg-blue-500 text-white font-bold py-2 rounded-lg hover:bg-blue-600 transition-colors">Download PDF</button>
-                    <button onClick={onClose} className="flex-1 bg-gray-500 text-white font-bold py-2 rounded-lg hover:bg-gray-600 transition-colors">Close</button>
-                </div>
-            </Modal>
-        );
-    }
-    
     return (
-        <Modal title="Withdraw Funds" onClose={onClose}>
-            <div className="space-y-6">
+        <Modal title="Withdraw crypto" onClose={onClose}>
+            <div className="space-y-5">
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">
-                        Amount to Withdraw (Tsh)
-                    </label>
-                    <p className="text-xs text-gray-500 mb-2">Available: {balance.toLocaleString('en-US')} Tsh</p>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">Amount (USD)</label>
+                    <p className="text-xs text-gray-400 mb-2">Available: ${maxUsd.toFixed(2)}</p>
                     <input
                         type="number"
                         value={amount || ''}
-                        onChange={(e) => setAmount(Math.min(parseInt(e.target.value) || 0, balance))}
-                        className="w-full pl-4 pr-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-transparent"
+                        onChange={(e) => setAmount(Math.min(parseFloat(e.target.value) || 0, maxUsd))}
+                        placeholder="0.00"
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-border rounded-md focus:ring-primary focus:border-primary bg-transparent"
                     />
                 </div>
                 <div>
-                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2">
-                        M-Pesa Mobile Number
-                    </label>
+                    <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">USDT address (TRC-20)</label>
                     <input
-                        type="tel"
-                        value={phone}
-                        onChange={(e) => setPhone(e.target.value)}
-                        placeholder="0712 345 678"
-                        className="w-full pl-4 pr-2 py-2 border border-gray-300 dark:border-gray-600 rounded-md focus:ring-primary focus:border-primary bg-transparent"
+                        type="text"
+                        value={address}
+                        onChange={(e) => setAddress(e.target.value)}
+                        placeholder="T..."
+                        className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-border rounded-md focus:ring-primary focus:border-primary bg-transparent font-mono text-sm"
                     />
                 </div>
-                 <button
+                <button
                     onClick={handleSubmit}
-                    disabled={amount <= 0 || !phone || submitting}
-                    className="w-full bg-primary text-white font-bold py-3 rounded-lg hover:bg-orange-600 transition-colors disabled:bg-gray-400"
+                    disabled={amount <= 0 || !address || submitting}
+                    className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-dark transition-colors disabled:bg-gray-400"
                 >
-                    {submitting ? 'Processing…' : `Withdraw ${amount > 0 ? amount.toLocaleString('en-US') : ''} Tsh`}
+                    {submitting ? 'Requesting…' : `Withdraw $${amount > 0 ? amount.toFixed(2) : '0.00'}`}
                 </button>
+                <p className="text-center text-xs text-gray-400">Withdrawals are reviewed before payout (usually within a few hours). The amount is held from your balance immediately.</p>
             </div>
         </Modal>
     );

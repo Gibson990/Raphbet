@@ -18,16 +18,101 @@ var (
 	ErrEmptyBet      = errors.New("no selections provided")
 )
 
-// Service coordinates the wallet and bet repositories.
+// Service coordinates the wallet, bet and withdrawal repositories.
 type Service struct {
 	wallets        domain.WalletRepository
 	bets           domain.BetRepository
+	withdrawals    domain.WithdrawalRepository
 	initialBalance domain.Money
 }
 
 // New builds a betting service. initialBalance seeds a brand-new wallet.
-func New(wallets domain.WalletRepository, bets domain.BetRepository, initialBalance domain.Money) *Service {
-	return &Service{wallets: wallets, bets: bets, initialBalance: initialBalance}
+func New(wallets domain.WalletRepository, bets domain.BetRepository, withdrawals domain.WithdrawalRepository, initialBalance domain.Money) *Service {
+	return &Service{wallets: wallets, bets: bets, withdrawals: withdrawals, initialBalance: initialBalance}
+}
+
+var ErrNoAddress = errors.New("a withdrawal address is required")
+var ErrNotPending = errors.New("withdrawal is not pending")
+
+// RequestWithdrawal validates funds, holds them (debits the wallet) and records
+// a PENDING withdrawal for admin approval.
+func (s *Service) RequestWithdrawal(deviceID string, amount domain.Money, address string) (*domain.Withdrawal, error) {
+	if amount <= 0 {
+		return nil, ErrInvalidAmount
+	}
+	if address == "" {
+		return nil, ErrNoAddress
+	}
+	w, err := s.Wallet(deviceID)
+	if err != nil {
+		return nil, err
+	}
+	if amount > w.Balance {
+		return nil, ErrInsufficient
+	}
+	w.Balance -= amount
+	s.addTx(w, domain.TxWithdrawal, -amount, "Withdrawal to "+address)
+	if err := s.wallets.Save(w); err != nil {
+		return nil, err
+	}
+	wd := &domain.Withdrawal{
+		ID:          newID(),
+		DeviceID:    deviceID,
+		Amount:      amount,
+		Address:     address,
+		Status:      domain.WdPending,
+		CreatedDate: time.Now(),
+	}
+	return wd, s.withdrawals.AddWithdrawal(wd)
+}
+
+// Withdrawals returns a device's withdrawal requests.
+func (s *Service) Withdrawals(deviceID string) ([]*domain.Withdrawal, error) {
+	return s.withdrawals.ListWithdrawalsByDevice(deviceID)
+}
+
+// PendingWithdrawals returns all withdrawals awaiting approval (admin).
+func (s *Service) PendingWithdrawals() ([]*domain.Withdrawal, error) {
+	return s.withdrawals.ListPendingWithdrawals()
+}
+
+// ApproveWithdrawal marks a pending withdrawal as paid. (Funds were already held
+// at request time; the actual crypto payout executes via the payout provider —
+// sandbox marks it paid until NOWPayments payouts are configured.)
+func (s *Service) ApproveWithdrawal(id string) (*domain.Withdrawal, error) {
+	wd, err := s.withdrawals.GetWithdrawal(id)
+	if err != nil || wd == nil {
+		return nil, err
+	}
+	if wd.Status != domain.WdPending {
+		return nil, ErrNotPending
+	}
+	wd.Status = domain.WdPaid
+	wd.Note = "approved"
+	return wd, s.withdrawals.UpdateWithdrawal(wd)
+}
+
+// RejectWithdrawal refunds the held funds and marks the request rejected.
+func (s *Service) RejectWithdrawal(id, reason string) (*domain.Withdrawal, error) {
+	wd, err := s.withdrawals.GetWithdrawal(id)
+	if err != nil || wd == nil {
+		return nil, err
+	}
+	if wd.Status != domain.WdPending {
+		return nil, ErrNotPending
+	}
+	w, err := s.Wallet(wd.DeviceID)
+	if err != nil {
+		return nil, err
+	}
+	w.Balance += wd.Amount
+	s.addTx(w, domain.TxPayout, wd.Amount, "Withdrawal refund")
+	if err := s.wallets.Save(w); err != nil {
+		return nil, err
+	}
+	wd.Status = domain.WdRejected
+	wd.Note = reason
+	return wd, s.withdrawals.UpdateWithdrawal(wd)
 }
 
 // Wallet returns the device's wallet, creating it (seeded) on first use.

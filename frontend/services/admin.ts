@@ -38,6 +38,14 @@ export interface AdminBet {
   placedDate: string;
 }
 
+export interface AdminWithdrawal {
+  id: string;
+  amount: number;
+  address: string;
+  status: 'PENDING' | 'PAID' | 'REJECTED';
+  createdDate: string;
+}
+
 async function adminGet<T>(path: string, key: string): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, { headers: { 'X-Admin-Key': key } });
   if (res.status === 401) throw new Error('unauthorized');
@@ -45,6 +53,15 @@ async function adminGet<T>(path: string, key: string): Promise<T> {
   return res.json() as Promise<T>;
 }
 
+async function adminPost<T>(path: string, key: string): Promise<T> {
+  const res = await fetch(`${API_BASE_URL}${path}`, { method: 'POST', headers: { 'X-Admin-Key': key } });
+  if (!res.ok) throw new Error(`request failed (${res.status})`);
+  return res.json() as Promise<T>;
+}
+
 export const fetchAdminStats = (key: string) => adminGet<AdminStats>('/api/admin/stats', key);
 export const fetchAdminUsers = (key: string) => adminGet<AdminUser[]>('/api/admin/users', key);
 export const fetchAdminBets = (key: string) => adminGet<AdminBet[]>('/api/admin/bets', key);
+export const fetchAdminWithdrawals = (key: string) => adminGet<AdminWithdrawal[]>('/api/admin/withdrawals', key);
+export const approveWithdrawal = (key: string, id: string) => adminPost(`/api/admin/withdrawals/${id}/approve`, key);
+export const rejectWithdrawal = (key: string, id: string) => adminPost(`/api/admin/withdrawals/${id}/reject`, key);

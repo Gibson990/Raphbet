@@ -60,6 +60,7 @@ func main() {
 	// Wallet + bets persistence: MongoDB when configured, else in-memory.
 	var wallets domain.WalletRepository
 	var bets domain.BetRepository
+	var withdrawals domain.WithdrawalRepository
 	var kycStore kyc.Store
 	if cfg.HasMongo() {
 		mongoStore, err := store.NewMongoStore(context.Background(), cfg.MongoURI, cfg.MongoDB)
@@ -67,14 +68,14 @@ func main() {
 			log.Fatalf("mongo connection failed: %v", err)
 		}
 		defer mongoStore.Close(context.Background())
-		wallets, bets, kycStore = mongoStore, mongoStore, mongoStore
+		wallets, bets, withdrawals, kycStore = mongoStore, mongoStore, mongoStore, mongoStore
 		log.Printf("store: MongoDB (db %q)", cfg.MongoDB)
 	} else {
 		memStore := store.NewMemoryStore()
-		wallets, bets, kycStore = memStore, memStore, memStore
+		wallets, bets, withdrawals, kycStore = memStore, memStore, memStore, memStore
 		log.Printf("store: in-memory (set MONGO_URI to persist)")
 	}
-	bettingService := betting.New(wallets, bets, cfg.InitialBalance)
+	bettingService := betting.New(wallets, bets, withdrawals, cfg.InitialBalance)
 
 	// Front-end base URL (for provider success/return redirects).
 	frontendBase := "http://localhost:3000"

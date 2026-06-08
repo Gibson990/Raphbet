@@ -17,6 +17,7 @@ func NewRouter(h *Handlers, allowedOrigins []string) http.Handler {
 	mux.HandleFunc("POST /api/wallet/withdraw", h.withdraw)
 	mux.HandleFunc("GET /api/bets", h.listBets)
 	mux.HandleFunc("POST /api/bets", h.placeBet)
+	mux.HandleFunc("GET /api/withdrawals", h.listWithdrawals)
 
 	// Crypto payment confirmation (NOWPayments IPN).
 	mux.HandleFunc("POST /api/payments/nowpayments/webhook", h.nowpaymentsWebhook)
@@ -31,6 +32,9 @@ func NewRouter(h *Handlers, allowedOrigins []string) http.Handler {
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
 	mux.HandleFunc("GET /api/admin/users", h.adminUsers)
 	mux.HandleFunc("GET /api/admin/bets", h.adminBets)
+	mux.HandleFunc("GET /api/admin/withdrawals", h.adminWithdrawals)
+	mux.HandleFunc("POST /api/admin/withdrawals/{id}/approve", h.adminApproveWithdrawal)
+	mux.HandleFunc("POST /api/admin/withdrawals/{id}/reject", h.adminRejectWithdrawal)
 
 	// Middleware is applied outermost-first: logging wraps CORS wraps the mux.
 	return logging(cors(allowedOrigins)(mux))

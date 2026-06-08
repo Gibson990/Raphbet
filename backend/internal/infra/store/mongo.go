@@ -16,10 +16,11 @@ import (
 // drop-in replacement for MemoryStore (same interfaces), selected at startup
 // when MONGO_URI is configured.
 type MongoStore struct {
-	client  *mongo.Client
-	wallets *mongo.Collection
-	bets    *mongo.Collection
-	kyc     *mongo.Collection
+	client      *mongo.Client
+	wallets     *mongo.Collection
+	bets        *mongo.Collection
+	kyc         *mongo.Collection
+	withdrawals *mongo.Collection
 }
 
 const opTimeout = 8 * time.Second
@@ -38,7 +39,7 @@ func NewMongoStore(ctx context.Context, uri, dbName string) (*MongoStore, error)
 	}
 
 	db := client.Database(dbName)
-	s := &MongoStore{client: client, wallets: db.Collection("wallets"), bets: db.Collection("bets"), kyc: db.Collection("kyc")}
+	s := &MongoStore{client: client, wallets: db.Collection("wallets"), bets: db.Collection("bets"), kyc: db.Collection("kyc"), withdrawals: db.Collection("withdrawals")}
 
 	// Indexes for the access patterns we use.
 	_, _ = s.bets.Indexes().CreateMany(connectCtx, []mongo.IndexModel{
@@ -214,6 +215,81 @@ func (s *MongoStore) SessionForDevice(deviceID string) (string, error) {
 		return "", nil
 	}
 	return doc.SessionID, err
+}
+
+// ---- WithdrawalRepository ----
+
+type withdrawalDoc struct {
+	ID          string                  `bson:"_id"`
+	DeviceID    string                  `bson:"deviceId"`
+	Amount      domain.Money            `bson:"amount"`
+	Address     string                  `bson:"address"`
+	Status      domain.WithdrawalStatus `bson:"status"`
+	CreatedDate time.Time               `bson:"createdDate"`
+	Note        string                  `bson:"note"`
+}
+
+func toWithdrawalDoc(w *domain.Withdrawal) withdrawalDoc {
+	return withdrawalDoc{ID: w.ID, DeviceID: w.DeviceID, Amount: w.Amount, Address: w.Address, Status: w.Status, CreatedDate: w.CreatedDate, Note: w.Note}
+}
+
+func (d withdrawalDoc) toDomain() *domain.Withdrawal {
+	return &domain.Withdrawal{ID: d.ID, DeviceID: d.DeviceID, Amount: d.Amount, Address: d.Address, Status: d.Status, CreatedDate: d.CreatedDate, Note: d.Note}
+}
+
+func (s *MongoStore) AddWithdrawal(w *domain.Withdrawal) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	_, err := s.withdrawals.InsertOne(ctx, toWithdrawalDoc(w))
+	return err
+}
+
+func (s *MongoStore) GetWithdrawal(id string) (*domain.Withdrawal, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	var d withdrawalDoc
+	err := s.withdrawals.FindOne(ctx, bson.M{"_id": id}).Decode(&d)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return d.toDomain(), nil
+}
+
+func (s *MongoStore) ListWithdrawalsByDevice(deviceID string) ([]*domain.Withdrawal, error) {
+	return s.findWithdrawals(bson.M{"deviceId": deviceID})
+}
+
+func (s *MongoStore) ListPendingWithdrawals() ([]*domain.Withdrawal, error) {
+	return s.findWithdrawals(bson.M{"status": domain.WdPending})
+}
+
+func (s *MongoStore) UpdateWithdrawal(w *domain.Withdrawal) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	_, err := s.withdrawals.ReplaceOne(ctx, bson.M{"_id": w.ID}, toWithdrawalDoc(w), options.Replace().SetUpsert(true))
+	return err
+}
+
+func (s *MongoStore) findWithdrawals(filter bson.M) ([]*domain.Withdrawal, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	cur, err := s.withdrawals.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	out := []*domain.Withdrawal{}
+	for cur.Next(ctx) {
+		var d withdrawalDoc
+		if err := cur.Decode(&d); err != nil {
+			return nil, err
+		}
+		out = append(out, d.toDomain())
+	}
+	return out, cur.Err()
 }
 
 func (s *MongoStore) find(filter bson.M) ([]*domain.Bet, error) {

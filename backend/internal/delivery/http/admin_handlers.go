@@ -58,3 +58,39 @@ func (h *Handlers) adminBets(w http.ResponseWriter, r *http.Request) {
 	}
 	writeJSON(w, http.StatusOK, bets)
 }
+
+func (h *Handlers) adminWithdrawals(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAdmin(w, r) {
+		return
+	}
+	wds, err := h.betting.PendingWithdrawals()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to load withdrawals", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wds)
+}
+
+func (h *Handlers) adminApproveWithdrawal(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAdmin(w, r) {
+		return
+	}
+	wd, err := h.betting.ApproveWithdrawal(r.PathValue("id"))
+	if err != nil {
+		bettingError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wd)
+}
+
+func (h *Handlers) adminRejectWithdrawal(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAdmin(w, r) {
+		return
+	}
+	wd, err := h.betting.RejectWithdrawal(r.PathValue("id"), "rejected by admin")
+	if err != nil {
+		bettingError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wd)
+}

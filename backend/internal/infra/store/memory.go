@@ -16,6 +16,7 @@ type MemoryStore struct {
 	mu      sync.RWMutex
 	wallets       map[string]*domain.Wallet
 	bets          map[string]*domain.Bet
+	withdrawals   map[string]*domain.Withdrawal
 	kyc           map[string]bool
 	deviceSession map[string]string // deviceID -> sessionID
 	sessionDevice map[string]string // sessionID -> deviceID
@@ -26,10 +27,65 @@ func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
 		wallets:       make(map[string]*domain.Wallet),
 		bets:          make(map[string]*domain.Bet),
+		withdrawals:   make(map[string]*domain.Withdrawal),
 		kyc:           make(map[string]bool),
 		deviceSession: make(map[string]string),
 		sessionDevice: make(map[string]string),
 	}
+}
+
+// ---- WithdrawalRepository ----
+
+func (s *MemoryStore) AddWithdrawal(w *domain.Withdrawal) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := *w
+	s.withdrawals[w.ID] = &cp
+	return nil
+}
+
+func (s *MemoryStore) GetWithdrawal(id string) (*domain.Withdrawal, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if w, ok := s.withdrawals[id]; ok {
+		cp := *w
+		return &cp, nil
+	}
+	return nil, nil
+}
+
+func (s *MemoryStore) ListWithdrawalsByDevice(deviceID string) ([]*domain.Withdrawal, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []*domain.Withdrawal{}
+	for _, w := range s.withdrawals {
+		if w.DeviceID == deviceID {
+			cp := *w
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
+}
+
+func (s *MemoryStore) ListPendingWithdrawals() ([]*domain.Withdrawal, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []*domain.Withdrawal{}
+	for _, w := range s.withdrawals {
+		if w.Status == domain.WdPending {
+			cp := *w
+			out = append(out, &cp)
+		}
+	}
+	return out, nil
+}
+
+func (s *MemoryStore) UpdateWithdrawal(w *domain.Withdrawal) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := *w
+	s.withdrawals[w.ID] = &cp
+	return nil
 }
 
 // ---- kyc.Store ----

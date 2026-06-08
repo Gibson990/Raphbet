@@ -2,8 +2,9 @@ import React, { useState, useEffect, useCallback } from 'react';
 import { BrandLogo } from '../components/layout/BrandLogo';
 import {
   getAdminKey, setAdminKey, clearAdminKey,
-  fetchAdminStats, fetchAdminUsers, fetchAdminBets,
-  type AdminStats, type AdminUser, type AdminBet,
+  fetchAdminStats, fetchAdminUsers, fetchAdminBets, fetchAdminWithdrawals,
+  approveWithdrawal, rejectWithdrawal,
+  type AdminStats, type AdminUser, type AdminBet, type AdminWithdrawal,
 } from '../services/admin';
 
 const tzs = (cents: number) => `$${(cents / 100).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -30,16 +31,24 @@ const AdminScreen: React.FC = () => {
   const [authed, setAuthed] = useState(false);
   const [passcode, setPasscode] = useState('');
   const [error, setError] = useState('');
-  const [tab, setTab] = useState<'overview' | 'users' | 'bets'>('overview');
+  const [tab, setTab] = useState<'overview' | 'users' | 'bets' | 'withdrawals'>('overview');
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [bets, setBets] = useState<AdminBet[]>([]);
+  const [withdrawals, setWithdrawals] = useState<AdminWithdrawal[]>([]);
 
   const load = useCallback(async (k: string) => {
-    const [s, u, b] = await Promise.all([fetchAdminStats(k), fetchAdminUsers(k), fetchAdminBets(k)]);
-    setStats(s); setUsers(u); setBets(b);
+    const [s, u, b, wd] = await Promise.all([fetchAdminStats(k), fetchAdminUsers(k), fetchAdminBets(k), fetchAdminWithdrawals(k)]);
+    setStats(s); setUsers(u); setBets(b); setWithdrawals(wd);
   }, []);
+
+  const decide = async (id: string, action: 'approve' | 'reject') => {
+    try {
+      await (action === 'approve' ? approveWithdrawal(key, id) : rejectWithdrawal(key, id));
+      await load(key);
+    } catch { /* ignore */ }
+  };
 
   // Try the stored key on mount.
   useEffect(() => {
@@ -108,10 +117,10 @@ const AdminScreen: React.FC = () => {
       <main className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
         {/* Tabs */}
         <div className="flex gap-1 border-b border-gray-200 dark:border-neutral-border mb-5">
-          {(['overview', 'users', 'bets'] as const).map((t) => (
+          {(['overview', 'users', 'bets', 'withdrawals'] as const).map((t) => (
             <button key={t} onClick={() => setTab(t)}
               className={`py-2.5 px-4 text-sm font-bold capitalize ${tab === t ? 'text-primary border-b-2 border-primary' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'}`}>
-              {t}
+              {t}{t === 'withdrawals' && withdrawals.length > 0 ? ` (${withdrawals.length})` : ''}
             </button>
           ))}
         </div>
@@ -186,6 +195,34 @@ const AdminScreen: React.FC = () => {
                   </tr>
                 ))}
                 {bets.length === 0 && <tr><td colSpan={6} className="text-center text-gray-400 py-8">No bets yet.</td></tr>}
+              </tbody>
+            </table>
+          </div>
+        )}
+        {tab === 'withdrawals' && (
+          <div className="overflow-x-auto bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl">
+            <table className="w-full text-sm text-left">
+              <thead className="text-xs uppercase text-gray-400 border-b border-gray-200 dark:border-neutral-border">
+                <tr>
+                  <th className="px-4 py-3">Requested</th>
+                  <th className="px-4 py-3">Address</th>
+                  <th className="px-4 py-3 text-right">Amount</th>
+                  <th className="px-4 py-3 text-right">Action</th>
+                </tr>
+              </thead>
+              <tbody>
+                {withdrawals.map((wd) => (
+                  <tr key={wd.id} className="border-b border-gray-100 dark:border-neutral-border last:border-0">
+                    <td className="px-4 py-3 text-gray-500 dark:text-gray-400">{new Date(wd.createdDate).toLocaleString()}</td>
+                    <td className="px-4 py-3 font-mono text-xs break-all">{wd.address}</td>
+                    <td className="px-4 py-3 text-right tabular-nums">{tzs(wd.amount)}</td>
+                    <td className="px-4 py-3 text-right whitespace-nowrap">
+                      <button onClick={() => decide(wd.id, 'approve')} className="text-xs font-bold text-success hover:underline mr-3">Approve</button>
+                      <button onClick={() => decide(wd.id, 'reject')} className="text-xs font-bold text-danger hover:underline">Reject</button>
+                    </td>
+                  </tr>
+                ))}
+                {withdrawals.length === 0 && <tr><td colSpan={4} className="text-center text-gray-400 py-8">No pending withdrawals.</td></tr>}
               </tbody>
             </table>
           </div>
