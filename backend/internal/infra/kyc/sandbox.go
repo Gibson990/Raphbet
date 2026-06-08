@@ -1,15 +1,10 @@
-// Package kyc holds Verifier implementations. SandboxVerifier auto-approves so
-// the verification flow works end to end without a provider key.
-//
-// A real Didit verifier would implement the same interface: create a
-// verification session via the Didit API (free tier), return the session URL to
-// the client, and confirm the result via a webhook or status poll. It needs a
-// DIDIT_API_KEY. Swap it in at startup with no changes to callers.
+// Package kyc holds Verifier implementations. SandboxVerifier approves instantly
+// so the flow works end to end without a provider account.
 package kyc
 
 import "context"
 
-// SandboxVerifier approves any submitted document.
+// SandboxVerifier approves every identity immediately (no hosted session).
 type SandboxVerifier struct{}
 
 // NewSandboxVerifier returns an auto-approving verifier.
@@ -17,6 +12,12 @@ func NewSandboxVerifier() *SandboxVerifier { return &SandboxVerifier{} }
 
 func (v *SandboxVerifier) Name() string { return "sandbox" }
 
-func (v *SandboxVerifier) Verify(_ context.Context, _ /*deviceID*/, _ /*documentName*/ string) (bool, error) {
-	return true, nil
+// StartSession returns an empty session id, signalling instant approval.
+func (v *SandboxVerifier) StartSession(_ context.Context, _ /*vendorData*/, _ /*callbackURL*/ string) (string, string, error) {
+	return "", "", nil
+}
+
+// Decision is unused for the sandbox (sessions are never created).
+func (v *SandboxVerifier) Decision(_ context.Context, _ string) (bool, bool, error) {
+	return true, true, nil
 }

@@ -14,17 +14,21 @@ import (
 // Data resets when the process restarts.
 type MemoryStore struct {
 	mu      sync.RWMutex
-	wallets map[string]*domain.Wallet
-	bets    map[string]*domain.Bet
-	kyc     map[string]bool
+	wallets       map[string]*domain.Wallet
+	bets          map[string]*domain.Bet
+	kyc           map[string]bool
+	deviceSession map[string]string // deviceID -> sessionID
+	sessionDevice map[string]string // sessionID -> deviceID
 }
 
 // NewMemoryStore creates an empty in-memory store.
 func NewMemoryStore() *MemoryStore {
 	return &MemoryStore{
-		wallets: make(map[string]*domain.Wallet),
-		bets:    make(map[string]*domain.Bet),
-		kyc:     make(map[string]bool),
+		wallets:       make(map[string]*domain.Wallet),
+		bets:          make(map[string]*domain.Bet),
+		kyc:           make(map[string]bool),
+		deviceSession: make(map[string]string),
+		sessionDevice: make(map[string]string),
 	}
 }
 
@@ -41,6 +45,26 @@ func (s *MemoryStore) IsVerified(deviceID string) (bool, error) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return s.kyc[deviceID], nil
+}
+
+func (s *MemoryStore) LinkSession(deviceID, sessionID string) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.deviceSession[deviceID] = sessionID
+	s.sessionDevice[sessionID] = deviceID
+	return nil
+}
+
+func (s *MemoryStore) DeviceForSession(sessionID string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.sessionDevice[sessionID], nil
+}
+
+func (s *MemoryStore) SessionForDevice(deviceID string) (string, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.deviceSession[deviceID], nil
 }
 
 // ---- WalletRepository ----

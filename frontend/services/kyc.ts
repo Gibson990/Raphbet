@@ -13,5 +13,9 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
 
 export const fetchKycStatus = () => req<{ verified: boolean }>('/api/kyc/status');
 
-export const submitKyc = (documentName: string) =>
-  req<{ verified: boolean }>('/api/kyc/submit', { method: 'POST', body: JSON.stringify({ documentName }) });
+/** Begin verification. Returns a hosted URL to redirect to, or verified=true
+ *  when already verified or the sandbox approves instantly. */
+export const startKyc = () => req<{ url: string; verified: boolean }>('/api/kyc/start', { method: 'POST' });
+
+/** Poll the provider for the latest decision (used on return from the hosted flow). */
+export const checkKyc = () => req<{ verified: boolean }>('/api/kyc/check', { method: 'POST' });

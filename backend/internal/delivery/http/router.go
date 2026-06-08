@@ -20,7 +20,9 @@ func NewRouter(h *Handlers, allowedOrigins []string) http.Handler {
 
 	// KYC (identity verification).
 	mux.HandleFunc("GET /api/kyc/status", h.kycStatus)
-	mux.HandleFunc("POST /api/kyc/submit", h.kycSubmit)
+	mux.HandleFunc("POST /api/kyc/start", h.kycStart)
+	mux.HandleFunc("POST /api/kyc/check", h.kycCheck)
+	mux.HandleFunc("POST /api/kyc/webhook", h.kycWebhook)
 
 	// Admin dashboard (gated by the admin key / future admin role).
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)

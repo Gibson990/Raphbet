@@ -1,50 +1,95 @@
-// Package kyc models identity verification behind a Verifier interface, so a
-// real provider (Didit's free tier, or Sumsub/Veriff) drops in without changing
-// callers. A sandbox verifier auto-approves for local/dev use.
+// Package kyc models identity verification behind a Verifier interface. The real
+// provider (Didit) uses a hosted session the user completes, with the result
+// delivered by webhook and/or polled; the sandbox auto-approves. Callers (HTTP)
+// don't change when the provider does.
 package kyc
 
 import "context"
 
-// Verifier checks an identity document and returns whether it is approved.
-// Real providers create a verification session and poll/await a webhook; the
-// sandbox approves immediately.
+// Verifier creates verification sessions and reports their decision.
 type Verifier interface {
 	Name() string
-	Verify(ctx context.Context, deviceID, documentName string) (approved bool, err error)
+	// StartSession creates a session for the identity (vendorData) and returns
+	// the hosted URL the user verifies at, plus the provider session id.
+	// The sandbox returns ("", "", nil) to signal instant approval.
+	StartSession(ctx context.Context, vendorData, callbackURL string) (url, sessionID string, err error)
+	// Decision returns the current decision for a session.
+	Decision(ctx context.Context, sessionID string) (approved, final bool, err error)
 }
 
-// Store persists per-identity KYC status (keyed by device id until auth lands).
+// Store persists KYC status and the device<->session mapping.
 type Store interface {
 	SetVerified(deviceID string) error
 	IsVerified(deviceID string) (bool, error)
+	LinkSession(deviceID, sessionID string) error
+	DeviceForSession(sessionID string) (string, error)
+	SessionForDevice(deviceID string) (string, error)
 }
 
-// Service runs verification and records the result.
+// Service runs the verification lifecycle.
 type Service struct {
-	verifier Verifier
-	store    Store
+	verifier    Verifier
+	store       Store
+	callbackURL string
 }
 
-// New builds a KYC service.
-func New(verifier Verifier, store Store) *Service {
-	return &Service{verifier: verifier, store: store}
+// New builds a KYC service. callbackURL is where the provider returns the user.
+func New(verifier Verifier, store Store, callbackURL string) *Service {
+	return &Service{verifier: verifier, store: store, callbackURL: callbackURL}
 }
 
-// Submit verifies a document and, if approved, marks the identity verified.
-func (s *Service) Submit(ctx context.Context, deviceID, documentName string) (bool, error) {
-	approved, err := s.verifier.Verify(ctx, deviceID, documentName)
+// Start begins verification. Returns a hosted URL to redirect to, or verified=true
+// when already verified or when the sandbox approves instantly.
+func (s *Service) Start(ctx context.Context, deviceID string) (url string, verified bool, err error) {
+	if v, _ := s.store.IsVerified(deviceID); v {
+		return "", true, nil
+	}
+	url, sessionID, err := s.verifier.StartSession(ctx, deviceID, s.callbackURL)
+	if err != nil {
+		return "", false, err
+	}
+	if sessionID == "" { // sandbox: instant approval
+		return "", true, s.store.SetVerified(deviceID)
+	}
+	if err := s.store.LinkSession(deviceID, sessionID); err != nil {
+		return "", false, err
+	}
+	return url, false, nil
+}
+
+// Check polls the provider for the device's session and updates status.
+func (s *Service) Check(ctx context.Context, deviceID string) (bool, error) {
+	if v, _ := s.store.IsVerified(deviceID); v {
+		return true, nil
+	}
+	sessionID, _ := s.store.SessionForDevice(deviceID)
+	if sessionID == "" {
+		return false, nil
+	}
+	approved, final, err := s.verifier.Decision(ctx, sessionID)
 	if err != nil {
 		return false, err
 	}
-	if approved {
-		if err := s.store.SetVerified(deviceID); err != nil {
-			return false, err
-		}
+	if final && approved {
+		return true, s.store.SetVerified(deviceID)
 	}
-	return approved, nil
+	return false, nil
 }
 
 // Status reports whether an identity is verified.
 func (s *Service) Status(deviceID string) (bool, error) {
 	return s.store.IsVerified(deviceID)
+}
+
+// MarkVerifiedBySession is invoked by the webhook handler once a session is
+// approved, mapping the provider session back to the device.
+func (s *Service) MarkVerifiedBySession(sessionID string, approved bool) error {
+	if !approved {
+		return nil
+	}
+	deviceID, err := s.store.DeviceForSession(sessionID)
+	if err != nil || deviceID == "" {
+		return err
+	}
+	return s.store.SetVerified(deviceID)
 }

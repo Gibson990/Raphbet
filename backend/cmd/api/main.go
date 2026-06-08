@@ -80,8 +80,20 @@ func main() {
 	paymentService := payments.New(paymentsinfra.NewSandboxProvider(), bettingService)
 	log.Printf("payments: provider %q", paymentService.ProviderName())
 
-	// KYC (sandbox verifier by default — Didit drops in here).
-	kycService := kyc.New(kycinfra.NewSandboxVerifier(), kycStore)
+	// KYC: real Didit verifier when configured, else sandbox auto-approve.
+	var kycVerifier kyc.Verifier
+	if cfg.HasDidit() {
+		kycVerifier = kycinfra.NewDiditVerifier(cfg.DiditBaseURL, cfg.DiditAPIKey, cfg.DiditWorkflowID)
+		log.Printf("kyc: using Didit (workflow %s)", cfg.DiditWorkflowID)
+	} else {
+		kycVerifier = kycinfra.NewSandboxVerifier()
+		log.Printf("kyc: sandbox verifier (auto-approve)")
+	}
+	callbackBase := "http://localhost:3000"
+	if len(cfg.AllowedOrigins) > 0 {
+		callbackBase = cfg.AllowedOrigins[0]
+	}
+	kycService := kyc.New(kycVerifier, kycStore, callbackBase+"/kyc")
 
 	// Admin dashboard read models (computed from live data).
 	adminService := admin.New(wallets, bets, kycStore)
@@ -90,7 +102,7 @@ func main() {
 	results := settlement.NewFootballResults(footballService, "1")
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
-	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey)
+	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey, cfg.DiditWebhookSecret)
 	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins)
 
 	srv := &http.Server{

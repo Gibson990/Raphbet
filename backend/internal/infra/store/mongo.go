@@ -163,7 +163,7 @@ func (s *MongoStore) Update(b *domain.Bet) error {
 func (s *MongoStore) SetVerified(deviceID string) error {
 	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 	defer cancel()
-	_, err := s.kyc.ReplaceOne(ctx, bson.M{"_id": deviceID}, bson.M{"_id": deviceID, "verified": true}, options.Replace().SetUpsert(true))
+	_, err := s.kyc.UpdateOne(ctx, bson.M{"_id": deviceID}, bson.M{"$set": bson.M{"verified": true}}, options.Update().SetUpsert(true))
 	return err
 }
 
@@ -181,6 +181,39 @@ func (s *MongoStore) IsVerified(deviceID string) (bool, error) {
 		return false, err
 	}
 	return doc.Verified, nil
+}
+
+func (s *MongoStore) LinkSession(deviceID, sessionID string) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	_, err := s.kyc.UpdateOne(ctx, bson.M{"_id": deviceID}, bson.M{"$set": bson.M{"sessionId": sessionID}}, options.Update().SetUpsert(true))
+	return err
+}
+
+func (s *MongoStore) DeviceForSession(sessionID string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	var doc struct {
+		ID string `bson:"_id"`
+	}
+	err := s.kyc.FindOne(ctx, bson.M{"sessionId": sessionID}).Decode(&doc)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return "", nil
+	}
+	return doc.ID, err
+}
+
+func (s *MongoStore) SessionForDevice(deviceID string) (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	var doc struct {
+		SessionID string `bson:"sessionId"`
+	}
+	err := s.kyc.FindOne(ctx, bson.M{"_id": deviceID}).Decode(&doc)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return "", nil
+	}
+	return doc.SessionID, err
 }
 
 func (s *MongoStore) find(filter bson.M) ([]*domain.Bet, error) {
