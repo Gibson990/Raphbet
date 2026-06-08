@@ -1,12 +1,16 @@
 package http
 
 import (
-	"log"
+	"log/slog"
 	"net/http"
+	"os"
 	"strings"
 	"sync"
 	"time"
 )
+
+// reqLog emits structured JSON request logs (ready for log aggregators).
+var reqLog = slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{Level: slog.LevelInfo}))
 
 // maxBody limits request bodies to guard against abuse (1 MiB is ample for our
 // JSON payloads; the webhook handlers also cap their own reads).
@@ -116,7 +120,13 @@ func logging(next http.Handler) http.Handler {
 		start := time.Now()
 		sw := &statusWriter{ResponseWriter: w, status: http.StatusOK}
 		next.ServeHTTP(sw, r)
-		log.Printf("%s %s -> %d (%s)", r.Method, r.URL.Path, sw.status, time.Since(start))
+		reqLog.Info("request",
+			"method", r.Method,
+			"path", r.URL.Path,
+			"status", sw.status,
+			"ms", time.Since(start).Milliseconds(),
+			"ip", clientIP(r),
+		)
 	})
 }
 
