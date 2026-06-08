@@ -21,6 +21,18 @@ type BettingService interface {
 	PendingWithdrawals() ([]*domain.Withdrawal, error)
 	ApproveWithdrawal(id string) (*domain.Withdrawal, error)
 	RejectWithdrawal(id, reason string) (*domain.Withdrawal, error)
+	Limits() betting.Limits
+}
+
+// publicConfig exposes risk limits so the UI can show accurate min/max hints.
+func (h *Handlers) publicConfig(w http.ResponseWriter, r *http.Request) {
+	l := h.betting.Limits()
+	writeJSON(w, http.StatusOK, map[string]int64{
+		"minBet":        l.MinBet,
+		"maxBet":        l.MaxBet,
+		"minWithdrawal": l.MinWithdrawal,
+		"maxWithdrawal": l.MaxWithdrawal,
+	})
 }
 
 // deviceID extracts the per-device identity (until real auth lands in Phase 5).
@@ -38,7 +50,7 @@ func bettingError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, betting.ErrInsufficient):
 		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "insufficient balance"})
-	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending):
+	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending), errors.Is(err, betting.ErrStakeRange), errors.Is(err, betting.ErrWithdrawalRange):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
 		writeError(w, http.StatusInternalServerError, "betting operation failed", err)

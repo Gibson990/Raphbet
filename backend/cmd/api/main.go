@@ -76,7 +76,12 @@ func main() {
 		wallets, bets, withdrawals, kycStore, processed = memStore, memStore, memStore, memStore, memStore
 		log.Printf("store: in-memory (set MONGO_URI to persist)")
 	}
-	bettingService := betting.New(wallets, bets, withdrawals, cfg.InitialBalance)
+	bettingService := betting.New(wallets, bets, withdrawals, cfg.InitialBalance, betting.Limits{
+		MinBet:        cfg.MinBet,
+		MaxBet:        cfg.MaxBet,
+		MinWithdrawal: cfg.MinWithdrawal,
+		MaxWithdrawal: cfg.MaxWithdrawal,
+	})
 
 	// Front-end base URL (for provider success/return redirects).
 	frontendBase := "http://localhost:3000"

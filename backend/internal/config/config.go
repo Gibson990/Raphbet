@@ -44,8 +44,14 @@ type Config struct {
 	LiveTTL      time.Duration
 	StandingsTTL time.Duration
 
-	// InitialBalance seeds a new wallet (virtual credits, in TZS).
+	// InitialBalance seeds a new wallet (USD cents).
 	InitialBalance int64
+
+	// Risk limits (USD cents).
+	MinBet        int64
+	MaxBet        int64
+	MinWithdrawal int64
+	MaxWithdrawal int64
 
 	// SettlementInterval is how often pending bets are settled from results.
 	SettlementInterval time.Duration
@@ -101,6 +107,10 @@ func Load() Config {
 		StandingsTTL:     getEnvDuration("STANDINGS_TTL", 6*time.Hour),
 
 		InitialBalance:     getEnvInt64("INITIAL_BALANCE", 0), // USD cents; 0 = no free credits (production). Set for dev.
+		MinBet:             getEnvInt64("MIN_BET", 50),             // $0.50
+		MaxBet:             getEnvInt64("MAX_BET", 100000),         // $1,000
+		MinWithdrawal:      getEnvInt64("MIN_WITHDRAWAL", 500),     // $5
+		MaxWithdrawal:      getEnvInt64("MAX_WITHDRAWAL", 1000000), // $10,000
 		SettlementInterval: getEnvDuration("SETTLEMENT_INTERVAL", 30*time.Second),
 
 		MongoURI: strings.TrimSpace(os.Getenv("MONGO_URI")),

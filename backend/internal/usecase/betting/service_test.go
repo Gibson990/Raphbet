@@ -9,11 +9,13 @@ import (
 	"github.com/Gibson990/Raphbet/backend/internal/infra/store"
 )
 
+var testLimits = Limits{MinBet: 1, MaxBet: 1_000_000, MinWithdrawal: 1, MaxWithdrawal: 1_000_000}
+
 // Concurrent bets must never overdraw the wallet: with $10 and 30 racing $1
 // bets, exactly 10 should succeed and the balance must land at 0 (never < 0).
 func TestConcurrentBetsNeverOverdraw(t *testing.T) {
 	mem := store.NewMemoryStore()
-	svc := New(mem, mem, mem, 1000) // 1000 cents = $10
+	svc := New(mem, mem, mem, 1000, testLimits) // 1000 cents = $10
 	const dev = "device-1"
 	if _, err := svc.Wallet(dev); err != nil {
 		t.Fatal(err)
@@ -51,7 +53,7 @@ func TestConcurrentBetsNeverOverdraw(t *testing.T) {
 // Refund on reject must restore exactly the held amount.
 func TestWithdrawalRejectRefunds(t *testing.T) {
 	mem := store.NewMemoryStore()
-	svc := New(mem, mem, mem, 5000)
+	svc := New(mem, mem, mem, 5000, testLimits)
 	const dev = "device-2"
 	wd, err := svc.RequestWithdrawal(dev, 2000, "addr")
 	if err != nil {

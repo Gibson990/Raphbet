@@ -1,8 +1,9 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Bet } from '../types';
 import { TrashIcon, XIcon, LockIcon, TicketIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { fetchLimits, cachedLimits, usd, type AppLimits } from '../services/config';
 
 interface BetSlipProps {
   bets: Bet[];
@@ -19,11 +20,14 @@ interface BetSlipProps {
 const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWagerChange, onPlaceBet, onClear }) => {
   const { isLoggedIn, isVerified } = useAuth();
   const { format } = useCurrency();
+  const [limits, setLimits] = useState<AppLimits>(cachedLimits());
+  useEffect(() => { fetchLimits().then(setLimits); }, []);
   const totalWager = bets.reduce((sum, bet) => sum + bet.wager, 0);
   const totalPayout = bets.reduce((sum, bet) => sum + bet.wager * bet.selection.odds, 0);
+  const overLimit = isLoggedIn && isVerified && bets.some((b) => b.wager > limits.maxBet);
   // Auth is enforced when placing (routes to login/KYC), so we only disable on
   // an empty/zero slip — guests can still click to be prompted to sign in.
-  const isBettingDisabled = bets.length === 0 || totalWager <= 0;
+  const isBettingDisabled = bets.length === 0 || totalWager <= 0 || overLimit;
   const insufficient = isLoggedIn && isVerified && totalWager > balance;
   const needsAuth = !isLoggedIn || !isVerified;
   const ctaLabel = !isLoggedIn ? 'Log in to bet' : !isVerified ? 'Verify to bet' : insufficient ? 'Top up to bet' : 'Place Bet';
@@ -86,6 +90,7 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWag
           <span>Potential payout</span>
           <span className="text-success tabular-nums">{format(totalPayout)}</span>
         </div>
+        <p className="text-[11px] text-gray-400 pt-0.5">Stake {usd(limits.minBet)}–{usd(limits.maxBet)} per selection</p>
       </div>
 
       <button
@@ -103,6 +108,9 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWag
       )}
       {insufficient && (
         <p className="text-center text-xs text-danger mt-2">Insufficient balance — top up to place this bet.</p>
+      )}
+      {overLimit && (
+        <p className="text-center text-xs text-danger mt-2">A selection exceeds the max stake of {usd(limits.maxBet)}.</p>
       )}
     </>
   );

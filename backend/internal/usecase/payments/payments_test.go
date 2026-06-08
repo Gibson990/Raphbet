@@ -11,7 +11,7 @@ import (
 // A retried webhook (same payment id) must credit the wallet only once.
 func TestConfirmDepositIsIdempotent(t *testing.T) {
 	mem := store.NewMemoryStore()
-	crediter := betting.New(mem, mem, mem, 0)
+	crediter := betting.New(mem, mem, mem, 0, betting.Limits{MaxBet: 1_000_000, MaxWithdrawal: 1_000_000})
 	svc := payments.New(nil, nil, crediter, mem)
 
 	for i := 0; i < 3; i++ { // simulate webhook retries

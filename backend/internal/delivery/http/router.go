@@ -10,6 +10,7 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux := http.NewServeMux()
 
 	mux.HandleFunc("GET /health", h.health)
+	mux.HandleFunc("GET /api/config", h.publicConfig)
 	mux.HandleFunc("GET /api/leagues", h.leagues)
 	mux.HandleFunc("GET /api/leagues/{id}/matches", h.matches)
 	mux.HandleFunc("GET /api/leagues/{id}/standings", h.standings)

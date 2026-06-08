@@ -19,19 +19,30 @@ var (
 	ErrEmptyBet      = errors.New("no selections provided")
 )
 
+// Limits are the configurable risk limits (USD cents).
+type Limits struct {
+	MinBet, MaxBet, MinWithdrawal, MaxWithdrawal domain.Money
+}
+
 // Service coordinates the wallet, bet and withdrawal repositories.
 type Service struct {
 	wallets        domain.WalletRepository
 	bets           domain.BetRepository
 	withdrawals    domain.WithdrawalRepository
 	initialBalance domain.Money
+	limits         Limits
 	locks          sync.Map // deviceID -> *sync.Mutex, serialises wallet mutations
 }
 
 // New builds a betting service. initialBalance seeds a brand-new wallet.
-func New(wallets domain.WalletRepository, bets domain.BetRepository, withdrawals domain.WithdrawalRepository, initialBalance domain.Money) *Service {
-	return &Service{wallets: wallets, bets: bets, withdrawals: withdrawals, initialBalance: initialBalance}
+func New(wallets domain.WalletRepository, bets domain.BetRepository, withdrawals domain.WithdrawalRepository, initialBalance domain.Money, limits Limits) *Service {
+	return &Service{wallets: wallets, bets: bets, withdrawals: withdrawals, initialBalance: initialBalance, limits: limits}
 }
+
+var (
+	ErrStakeRange      = errors.New("stake is outside the allowed limits")
+	ErrWithdrawalRange = errors.New("withdrawal amount is outside the allowed limits")
+)
 
 // lock serialises all balance mutations for one device so concurrent requests
 // can't both pass a balance check and overdraw (read-modify-write race). Returns
@@ -53,6 +64,9 @@ func (s *Service) RequestWithdrawal(deviceID string, amount domain.Money, addres
 	defer s.lock(deviceID)()
 	if amount <= 0 {
 		return nil, ErrInvalidAmount
+	}
+	if amount < s.limits.MinWithdrawal || amount > s.limits.MaxWithdrawal {
+		return nil, ErrWithdrawalRange
 	}
 	if address == "" {
 		return nil, ErrNoAddress
@@ -195,6 +209,9 @@ func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *
 		if it.Wager <= 0 {
 			return nil, nil, ErrInvalidAmount
 		}
+		if it.Wager < s.limits.MinBet || it.Wager > s.limits.MaxBet {
+			return nil, nil, ErrStakeRange
+		}
 		total += it.Wager
 	}
 	w, err := s.Wallet(deviceID)
@@ -229,6 +246,9 @@ func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *
 	}
 	return placed, w, nil
 }
+
+// Limits returns the configured risk limits (for the public config endpoint).
+func (s *Service) Limits() Limits { return s.limits }
 
 // Bets returns all bets for a device, pending first then newest.
 func (s *Service) Bets(deviceID string) ([]*domain.Bet, error) {
