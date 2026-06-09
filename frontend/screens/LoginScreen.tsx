@@ -1,6 +1,8 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { RecaptchaVerifier, signInWithPhoneNumber, type ConfirmationResult } from 'firebase/auth';
 import { useAuth } from '../contexts/AuthContext';
+import { auth } from '../services/firebase';
 import { ToastMessage } from '../App';
 import { GoogleIcon } from '../components/icons';
 import { BrandLogo } from '../components/layout/BrandLogo';
@@ -10,11 +12,14 @@ interface LoginScreenProps {
 }
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
-  const { login } = useAuth();
+  const { loginWithGoogle } = useAuth();
   const [phone, setPhone] = useState('');
   const [otp, setOtp] = useState('');
   const [otpSent, setOtpSent] = useState(false);
   const [agreed, setAgreed] = useState(false);
+  const [busy, setBusy] = useState(false);
+  const recaptchaRef = useRef<RecaptchaVerifier | null>(null);
+  const confirmationRef = useRef<ConfirmationResult | null>(null);
 
   const requireConsent = (): boolean => {
     if (!agreed) {
@@ -24,31 +29,59 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
     return true;
   };
 
-  const handlePhoneSubmit = (e: React.FormEvent) => {
+  // Convert a local number to E.164 (defaults to Tanzania +255 for 0-prefixed).
+  const toE164 = (p: string) => (p.startsWith('+') ? p : p.replace(/\s/g, '').replace(/^0/, '+255'));
+
+  const handlePhoneSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!requireConsent()) return;
-    if (/^0[67]\d{8}$/.test(phone)) {
+    if (!requireConsent() || !auth) return;
+    const e164 = toE164(phone);
+    if (!/^\+\d{10,15}$/.test(e164)) {
+      addToast('Enter a valid mobile number (e.g. 0712 345 678).', 'error');
+      return;
+    }
+    setBusy(true);
+    try {
+      if (!recaptchaRef.current) {
+        recaptchaRef.current = new RecaptchaVerifier(auth, 'recaptcha-container', { size: 'invisible' });
+      }
+      confirmationRef.current = await signInWithPhoneNumber(auth, e164, recaptchaRef.current);
       setOtpSent(true);
-      addToast('OTP sent! Use 1234 for this demo.', 'success');
-    } else {
-      addToast('Enter a valid Tanzanian mobile number (e.g. 0712345678).', 'error');
+      addToast('Verification code sent.', 'success');
+    } catch (err: any) {
+      addToast(err?.message || 'Could not send code. Is phone sign-in enabled?', 'error');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleOtpSubmit = (e: React.FormEvent) => {
+  const handleOtpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (otp === '1234') {
-      login('phone', phone);
+    if (!confirmationRef.current) return;
+    setBusy(true);
+    try {
+      await confirmationRef.current.confirm(otp); // onAuthStateChanged redirects
       addToast('Login successful!', 'success');
-    } else {
-      addToast('Invalid OTP. Use 1234 for this demo.', 'error');
+    } catch {
+      addToast('Invalid code. Please try again.', 'error');
+    } finally {
+      setBusy(false);
     }
   };
 
-  const handleGoogleLogin = () => {
+  const handleGoogleLogin = async () => {
     if (!requireConsent()) return;
-    login('google', 'user@raphbet.com');
-    addToast('Login successful!', 'success');
+    setBusy(true);
+    try {
+      await loginWithGoogle(); // onAuthStateChanged redirects to home
+      addToast('Login successful!', 'success');
+    } catch (err: any) {
+      if (err?.code !== 'auth/popup-closed-by-user') {
+        addToast(err?.message || 'Sign-in failed.', 'error');
+      }
+    } finally {
+      setBusy(false);
+    }
   };
 
   const inputClass =
@@ -84,15 +117,15 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
                   <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Mobile number</label>
                   <input id="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="0712 345 678" className={inputClass} />
                 </div>
-                <button type="submit" className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dark transition-colors">Send OTP</button>
+                <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:bg-gray-400">{busy ? 'Sending…' : 'Send code'}</button>
               </form>
             ) : (
               <form onSubmit={handleOtpSubmit} className="space-y-4">
                 <div>
-                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Enter OTP</label>
-                  <input id="otp" type="text" value={otp} onChange={e => setOtp(e.target.value)} placeholder="1234" className={inputClass} />
+                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Enter the code we sent</label>
+                  <input id="otp" type="text" inputMode="numeric" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" className={inputClass} />
                 </div>
-                <button type="submit" className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dark transition-colors">Verify &amp; Login</button>
+                <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:bg-gray-400">{busy ? 'Verifying…' : 'Verify & Login'}</button>
                 <button type="button" onClick={() => setOtpSent(false)} className="w-full text-center text-sm text-primary hover:underline">Change number</button>
               </form>
             )}
@@ -103,9 +136,10 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
               <div className="flex-grow border-t border-gray-200 dark:border-neutral-border" />
             </div>
 
-            <button onClick={handleGoogleLogin} className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 dark:border-neutral-border rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-dark-card transition-colors">
+            <button onClick={handleGoogleLogin} disabled={busy} className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 dark:border-neutral-border rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-dark-card transition-colors disabled:opacity-60">
               <GoogleIcon className="w-5 h-5" /> Continue with Google
             </button>
+            <div id="recaptcha-container" />
 
             <label className="flex items-start gap-2.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
               <input

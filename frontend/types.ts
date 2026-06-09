@@ -85,6 +85,10 @@ export interface PlacedBet extends Bet {
   placedDate: string;
   status: 'PENDING' | 'WON' | 'LOST';
   payout?: number;
+  isMulti?: boolean;
+  selections?: BetSelection[];
+  multiplier?: number;
+  winBoost?: number;
 }
 
 export interface Transaction {

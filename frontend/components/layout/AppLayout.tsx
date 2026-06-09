@@ -14,12 +14,12 @@ export const AppLayout: React.FC<{ ctx: AppOutletContext }> = ({ ctx }) => {
   const betSlipCount = wallet.betSlip.length;
 
   return (
-    <div className="min-h-screen bg-neutral-light-gray dark:bg-neutral-dark text-neutral-dark dark:text-neutral-light-gray font-sans">
+    <div className="min-h-screen bg-neutral-light-gray dark:bg-neutral-dark text-neutral-dark dark:text-neutral-light-gray font-sans overflow-x-clip">
       <div className="lg:flex">
         <Sidebar betSlipCount={betSlipCount} isDarkMode={isDarkMode} toggleDarkMode={toggleDarkMode} />
         <div className="flex-1 min-w-0">
           <Header balance={wallet.balance} onDeposit={() => navigate('/wallet')} />
-          <main className="px-3 sm:px-6 py-5 max-w-6xl mx-auto w-full">
+          <main className="px-4 sm:px-6 py-5 max-w-6xl mx-auto w-full">
             <Outlet context={ctx} />
           </main>
           <Footer />

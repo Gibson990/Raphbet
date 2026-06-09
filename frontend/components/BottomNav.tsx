@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { HomeIcon, ReceiptIcon, CreditCardIcon, UserCircleIcon } from './icons';
+import { HomeIcon, ReceiptIcon, CreditCardIcon, UserCircleIcon, ChatBubbleIcon } from './icons';
 
 interface BottomNavProps {
   betSlipCount: number;
@@ -10,6 +10,7 @@ const items = [
   { to: '/', label: 'Home', icon: HomeIcon, end: true, badge: false },
   { to: '/bets', label: 'My Bets', icon: ReceiptIcon, end: false, badge: true },
   { to: '/wallet', label: 'Wallet', icon: CreditCardIcon, end: false, badge: false },
+  { to: '/support', label: 'Support', icon: ChatBubbleIcon, end: false, badge: false },
   { to: '/profile', label: 'Profile', icon: UserCircleIcon, end: false, badge: false },
 ];
 

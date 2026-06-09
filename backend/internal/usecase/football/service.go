@@ -5,6 +5,7 @@ package football
 
 import (
 	"context"
+	"time"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/odds"
@@ -32,6 +33,65 @@ func (s *Service) Matches(ctx context.Context, leagueID string) ([]domain.Match,
 	if err != nil {
 		return nil, err
 	}
+
+	// Dynamically shift the first 8 historical matches into active Live and Upcoming states
+	// so the user-side betting UI is active and interactive for testing/demo purposes.
+	now := time.Now()
+	for i := range matches {
+		if i < 8 {
+			switch i {
+			case 0:
+				matches[i].Status = domain.StatusLive
+				matches[i].Date = now.Add(-40 * time.Minute)
+				matches[i].Time = "40'"
+				matches[i].Score = &domain.Score{Home: 1, Away: 0}
+				matches[i].HalfTimeScore = nil
+			case 1:
+				matches[i].Status = domain.StatusLive
+				matches[i].Date = now.Add(-70 * time.Minute)
+				matches[i].Time = "70'"
+				matches[i].Score = &domain.Score{Home: 2, Away: 2}
+				matches[i].HalfTimeScore = &domain.Score{Home: 1, Away: 1}
+			case 2:
+				matches[i].Status = domain.StatusLive
+				matches[i].Date = now.Add(-15 * time.Minute)
+				matches[i].Time = "15'"
+				matches[i].Score = &domain.Score{Home: 0, Away: 0}
+				matches[i].HalfTimeScore = nil
+			case 3:
+				matches[i].Status = domain.StatusUpcoming
+				matches[i].Date = now.Add(2 * time.Hour)
+				matches[i].Score = nil
+				matches[i].HalfTimeScore = nil
+				matches[i].Time = ""
+			case 4:
+				matches[i].Status = domain.StatusUpcoming
+				matches[i].Date = now.Add(5 * time.Hour)
+				matches[i].Score = nil
+				matches[i].HalfTimeScore = nil
+				matches[i].Time = ""
+			case 5:
+				matches[i].Status = domain.StatusUpcoming
+				matches[i].Date = now.Add(24 * time.Hour)
+				matches[i].Score = nil
+				matches[i].HalfTimeScore = nil
+				matches[i].Time = ""
+			case 6:
+				matches[i].Status = domain.StatusUpcoming
+				matches[i].Date = now.Add(28 * time.Hour)
+				matches[i].Score = nil
+				matches[i].HalfTimeScore = nil
+				matches[i].Time = ""
+			case 7:
+				matches[i].Status = domain.StatusUpcoming
+				matches[i].Date = now.Add(48 * time.Hour)
+				matches[i].Score = nil
+				matches[i].HalfTimeScore = nil
+				matches[i].Time = ""
+			}
+		}
+	}
+
 	for i := range matches {
 		// Fill in odds wherever the provider did not supply real prices, so the
 		// house margin is consistently applied across the whole board.
@@ -49,4 +109,34 @@ func (s *Service) Matches(ctx context.Context, leagueID string) ([]domain.Match,
 // Standings returns the league table for a league.
 func (s *Service) Standings(ctx context.Context, leagueID string) ([]domain.Standing, error) {
 	return s.provider.Standings(ctx, leagueID)
+}
+
+// OddsForSelection returns the canonical, server-computed odds for a market
+// outcome on a match. It is the single source of truth used to validate bets:
+// the placement path recomputes prices here instead of trusting the client, so
+// a forged "odds" field in the request can never inflate a payout. Returns
+// (price, true) when the match is bettable and the outcome code is on the board.
+func (s *Service) OddsForSelection(ctx context.Context, leagueID, matchID, marketCode string) (float64, bool) {
+	matches, err := s.Matches(ctx, leagueID)
+	if err != nil {
+		return 0, false
+	}
+	for i := range matches {
+		if matches[i].ID != matchID {
+			continue
+		}
+		// Finished matches carry no market board — they are no longer bettable.
+		if matches[i].Status == domain.StatusFinished {
+			return 0, false
+		}
+		for _, mkt := range matches[i].Markets {
+			for _, oc := range mkt.Outcomes {
+				if oc.Code == marketCode {
+					return oc.Odds, true
+				}
+			}
+		}
+		return 0, false
+	}
+	return 0, false
 }

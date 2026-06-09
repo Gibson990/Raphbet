@@ -1,15 +1,17 @@
-import React from 'react';
+import React, { useEffect, useState } from 'react';
 import type { Bet } from '../types';
 import { TrashIcon, XIcon, LockIcon, TicketIcon } from './icons';
 import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { fetchLimits, cachedLimits, usd, type AppLimits } from '../services/config';
+import { winBoostPercent as accaBoostPercent, MAX_ACCA_LEGS } from '../services/accaBoost';
 
 interface BetSlipProps {
   bets: Bet[];
   balance: number;
   onRemove: (matchId: string) => void;
   onWagerChange: (matchId: string, wager: number) => void;
-  onPlaceBet: () => void;
+  onPlaceBet: (isMulti?: boolean, multiWager?: number) => void;
   onClear: () => void;
   onClose: () => void;
   variant?: 'modal' | 'rail';
@@ -19,11 +21,34 @@ interface BetSlipProps {
 const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWagerChange, onPlaceBet, onClear }) => {
   const { isLoggedIn, isVerified } = useAuth();
   const { format } = useCurrency();
-  const totalWager = bets.reduce((sum, bet) => sum + bet.wager, 0);
-  const totalPayout = bets.reduce((sum, bet) => sum + bet.wager * bet.selection.odds, 0);
-  // Auth is enforced when placing (routes to login/KYC), so we only disable on
-  // an empty/zero slip — guests can still click to be prompted to sign in.
-  const isBettingDisabled = bets.length === 0 || totalWager <= 0;
+  const [limits, setLimits] = useState<AppLimits>(cachedLimits());
+  const [isAccumulator, setIsAccumulator] = useState(false);
+  const [accWager, setAccWager] = useState<number>(0);
+
+  useEffect(() => {
+    fetchLimits().then(setLimits);
+  }, []);
+
+  // Combined Accumulator calculations (display only — the server reprices and
+  // recomputes the boost authoritatively at placement).
+  const combinedMultiplier = bets.reduce((prod, b) => prod * b.selection.odds, 1);
+  const winBoostPercent = accaBoostPercent(bets.length);
+  const tooManyLegs = bets.length > MAX_ACCA_LEGS;
+
+  // Derive wager and payouts based on mode
+  const totalWager = isAccumulator ? accWager : bets.reduce((sum, bet) => sum + bet.wager, 0);
+  const totalPayout = isAccumulator
+    ? accWager * combinedMultiplier * (1 + winBoostPercent / 100)
+    : bets.reduce((sum, bet) => sum + bet.wager * bet.selection.odds, 0);
+
+  const overLimit = isAccumulator
+    ? isLoggedIn && isVerified && accWager > limits.maxBet
+    : isLoggedIn && isVerified && bets.some((b) => b.wager > limits.maxBet);
+
+  const isBettingDisabled = isAccumulator
+    ? bets.length === 0 || accWager <= 0 || overLimit || tooManyLegs
+    : bets.length === 0 || totalWager <= 0 || overLimit;
+
   const insufficient = isLoggedIn && isVerified && totalWager > balance;
   const needsAuth = !isLoggedIn || !isVerified;
   const ctaLabel = !isLoggedIn ? 'Log in to bet' : !isVerified ? 'Verify to bet' : insufficient ? 'Top up to bet' : 'Place Bet';
@@ -42,56 +67,121 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWag
 
   return (
     <>
+      {/* Sliding Mode Selector */}
+      <div className="mb-4 bg-gray-100 dark:bg-neutral-dark p-1 rounded-xl flex">
+        <button
+          onClick={() => setIsAccumulator(false)}
+          className={`flex-1 text-center py-2 text-xs font-bold rounded-lg transition-all ${
+            !isAccumulator
+              ? 'bg-white dark:bg-neutral-dark-gray shadow text-neutral-dark dark:text-white'
+              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+          }`}
+        >
+          Singles
+        </button>
+        <button
+          onClick={() => setIsAccumulator(true)}
+          className={`flex-1 text-center py-2 text-xs font-bold rounded-lg transition-all flex items-center justify-center gap-1.5 ${
+            isAccumulator
+              ? 'bg-gradient-to-r from-primary to-purple-600 shadow text-white'
+              : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-200'
+          }`}
+        >
+          Accumulator
+          {winBoostPercent > 0 && (
+            <span className="bg-white/20 text-white text-[9px] px-1.5 py-0.5 rounded-full font-extrabold animate-pulse">
+              +{winBoostPercent}%
+            </span>
+          )}
+        </button>
+      </div>
+
       <div className="space-y-3 overflow-y-auto pr-1 flex-grow">
         {bets.map(({ selection, wager }) => (
-          <div key={selection.matchId} className="bg-gray-50 dark:bg-neutral-dark rounded-xl p-3">
+          <div key={selection.matchId} className="bg-gray-50 dark:bg-neutral-dark rounded-xl p-3 border border-transparent hover:border-gray-200 dark:hover:border-neutral-border transition-all">
             <div className="flex justify-between items-start gap-2">
               <div className="min-w-0">
                 <p className="text-xs text-gray-400 truncate">{selection.matchDescription}</p>
                 <p className="font-semibold text-sm">{selection.marketLabel}</p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <span className="font-bold text-primary tabular-nums">{selection.odds.toFixed(2)}</span>
-                <button onClick={() => onRemove(selection.matchId)} className="text-gray-400 hover:text-danger">
+                <span className="font-bold text-primary text-sm tabular-nums">{selection.odds.toFixed(2)}</span>
+                <button onClick={() => onRemove(selection.matchId)} className="text-gray-400 hover:text-danger transition-colors">
                   <TrashIcon className="h-4 w-4" />
                 </button>
               </div>
             </div>
-            <div className="mt-2.5 flex items-center justify-between gap-2">
-              <div className="relative">
-                <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
-                <input
-                  type="number"
-                  value={wager ? wager / 100 : ''}
-                  onChange={(e) => onWagerChange(selection.matchId, Math.round((parseFloat(e.target.value) || 0) * 100))}
-                  placeholder="0"
-                  className="w-28 pl-7 pr-2 py-1.5 text-sm border border-gray-300 dark:border-neutral-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary bg-transparent tabular-nums"
-                />
+            {!isAccumulator && (
+              <div className="mt-2.5 flex items-center justify-between gap-2">
+                <div className="relative">
+                  <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+                  <input
+                    type="number"
+                    value={wager ? wager / 100 : ''}
+                    onChange={(e) => onWagerChange(selection.matchId, Math.round((parseFloat(e.target.value) || 0) * 100))}
+                    placeholder="0"
+                    className="w-28 pl-7 pr-2 py-1.5 text-sm border border-gray-300 dark:border-neutral-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary bg-transparent tabular-nums"
+                  />
+                </div>
+                <div className="text-right">
+                  <p className="text-[11px] text-gray-400">To win</p>
+                  <p className="font-semibold text-sm text-primary dark:text-white tabular-nums">{format(wager * selection.odds)}</p>
+                </div>
               </div>
-              <div className="text-right">
-                <p className="text-[11px] text-gray-400">To win</p>
-                <p className="font-semibold text-sm tabular-nums">{format(wager * selection.odds)}</p>
-              </div>
-            </div>
+            )}
           </div>
         ))}
       </div>
 
+      {isAccumulator && (
+        <div className="mt-4 bg-gradient-to-r from-primary/10 to-purple-600/10 dark:from-primary/5 dark:to-purple-600/5 border border-primary/20 dark:border-primary/10 rounded-xl p-3">
+          <div className="flex justify-between items-center mb-2">
+            <div className="flex items-center gap-1.5">
+              <span className="text-xs font-bold uppercase tracking-wider text-purple-600 dark:text-purple-400">Combined Odds</span>
+            </div>
+            <span className="font-black text-primary text-base tabular-nums">{combinedMultiplier.toFixed(2)}</span>
+          </div>
+          <div className="flex items-center justify-between gap-2 pt-1.5 border-t border-primary/10">
+            <div className="relative">
+              <span className="absolute left-3 top-1/2 -translate-y-1/2 text-xs text-gray-400">$</span>
+              <input
+                type="number"
+                value={accWager ? accWager / 100 : ''}
+                onChange={(e) => setAccWager(Math.round((parseFloat(e.target.value) || 0) * 100))}
+                placeholder="Stake amount"
+                className="w-32 pl-7 pr-2 py-1.5 text-sm border border-gray-300 dark:border-neutral-border rounded-lg focus:ring-1 focus:ring-primary focus:border-primary bg-transparent font-bold tabular-nums text-primary dark:text-white"
+              />
+            </div>
+            <div className="text-right">
+              <p className="text-[11px] text-gray-400">Potential win</p>
+              <p className="font-black text-sm text-success tabular-nums">{format(accWager * combinedMultiplier)}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
       <div className="mt-4 pt-3 border-t border-gray-200 dark:border-neutral-border space-y-1.5">
+        {isAccumulator && winBoostPercent > 0 && (
+          <div className="flex justify-between text-xs font-extrabold text-purple-600 dark:text-purple-400 bg-purple-50 dark:bg-purple-950/30 px-2 py-1.5 rounded-lg border border-purple-200/50 dark:border-purple-800/30 mb-2">
+            <span>Win Boost ({bets.length} selections)</span>
+            <span>+{winBoostPercent}% (+{format(accWager * combinedMultiplier * (winBoostPercent / 100))})</span>
+          </div>
+        )}
         <div className="flex justify-between text-sm text-gray-500 dark:text-gray-400">
           <span>Total stake</span>
-          <span className="tabular-nums">{format(totalWager)}</span>
+          <span className="tabular-nums font-semibold">{format(totalWager)}</span>
         </div>
         <div className="flex justify-between font-bold">
           <span>Potential payout</span>
-          <span className="text-success tabular-nums">{format(totalPayout)}</span>
+          <span className="text-success text-base tabular-nums font-black">{format(totalPayout)}</span>
         </div>
+        <p className="text-[11px] text-gray-400 pt-0.5">Stake {usd(limits.minBet)}–{usd(limits.maxBet)} per selection</p>
       </div>
 
       <button
-        onClick={onPlaceBet}
+        onClick={() => onPlaceBet(isAccumulator, accWager)}
         disabled={isBettingDisabled}
-        className="mt-3 w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-dark transition-colors disabled:bg-gray-300 dark:disabled:bg-neutral-dark-card disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+        className="mt-3 w-full bg-gradient-to-r from-primary to-purple-600 text-white font-bold py-3 rounded-xl hover:opacity-95 transition-opacity disabled:bg-gray-300 dark:disabled:bg-neutral-dark-card disabled:from-gray-300 disabled:to-gray-300 dark:disabled:from-neutral-dark-card dark:disabled:to-neutral-dark-card disabled:text-gray-500 disabled:cursor-not-allowed flex items-center justify-center gap-2"
       >
         {needsAuth && <LockIcon className="h-5 w-5" />}
         <span>{ctaLabel}</span>
@@ -103,6 +193,12 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWag
       )}
       {insufficient && (
         <p className="text-center text-xs text-danger mt-2">Insufficient balance — top up to place this bet.</p>
+      )}
+      {overLimit && (
+        <p className="text-center text-xs text-danger mt-2">Wager exceeds the max stake of {usd(limits.maxBet)}.</p>
+      )}
+      {isAccumulator && tooManyLegs && (
+        <p className="text-center text-xs text-danger mt-2">An accumulator can have at most {MAX_ACCA_LEGS} selections.</p>
       )}
     </>
   );

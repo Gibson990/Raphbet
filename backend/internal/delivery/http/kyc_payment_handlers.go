@@ -7,8 +7,10 @@ import (
 	"crypto/sha512"
 	"encoding/hex"
 	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+	"strconv"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/payments"
@@ -17,7 +19,7 @@ import (
 // PaymentsService is the use case port for deposits.
 type PaymentsService interface {
 	Deposit(ctx context.Context, deviceID string, amount domain.Money, method payments.Method) (payments.Intent, *domain.Wallet, error)
-	ConfirmDeposit(deviceID string, amount domain.Money, method string) error
+	ConfirmDeposit(paymentID, deviceID string, amount domain.Money, method string) error
 }
 
 // nowpaymentsWebhook receives NOWPayments' signed IPN. The body is HMAC-SHA512
@@ -49,9 +51,10 @@ func (h *Handlers) nowpaymentsWebhook(w http.ResponseWriter, r *http.Request) {
 
 	status, _ := m["payment_status"].(string)
 	orderID, _ := m["order_id"].(string)
-	if status == "finished" || status == "confirmed" {
+	paymentID := asString(m["payment_id"])
+	if (status == "finished" || status == "confirmed") && paymentID != "" {
 		if deviceID, amount, ok := payments.DecodeOrderID(orderID); ok {
-			if err := h.payments.ConfirmDeposit(deviceID, amount, "Crypto top-up via NOWPayments"); err != nil {
+			if err := h.payments.ConfirmDeposit(paymentID, deviceID, amount, "Crypto top-up via NOWPayments"); err != nil {
 				writeError(w, http.StatusInternalServerError, "credit failed", err)
 				return
 			}
@@ -66,10 +69,11 @@ type KycService interface {
 	Check(ctx context.Context, deviceID string) (bool, error)
 	Status(deviceID string) (bool, error)
 	MarkVerifiedBySession(sessionID string, approved bool) error
+	SetVerified(deviceID string, verified bool) error
 }
 
 func (h *Handlers) kycStatus(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -84,7 +88,7 @@ func (h *Handlers) kycStatus(w http.ResponseWriter, r *http.Request) {
 // kycStart begins verification: returns a hosted URL to redirect to, or
 // verified:true when already verified / the sandbox approves instantly.
 func (h *Handlers) kycStart(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -98,7 +102,7 @@ func (h *Handlers) kycStart(w http.ResponseWriter, r *http.Request) {
 
 // kycCheck polls the provider for the latest decision.
 func (h *Handlers) kycCheck(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -140,6 +144,40 @@ func (h *Handlers) kycWebhook(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// kycSandboxApprove allows the frontend mock verification screen to approve a sandbox session.
+func (h *Handlers) kycSandboxApprove(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	if !(len(req.SessionID) >= 8 && req.SessionID[:8] == "sandbox_") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only sandbox sessions can be auto-approved"})
+		return
+	}
+	if err := h.kyc.MarkVerifiedBySession(req.SessionID, true); err != nil {
+		writeError(w, http.StatusInternalServerError, "sandbox approval failed", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// asString coerces a JSON value (string or number) to a string id.
+func asString(v any) string {
+	switch x := v.(type) {
+	case string:
+		return x
+	case float64:
+		return strconv.FormatFloat(x, 'f', -1, 64)
+	case nil:
+		return ""
+	default:
+		return fmt.Sprintf("%v", x)
+	}
 }
 
 func validHMAC(body []byte, signature, secret string) bool {

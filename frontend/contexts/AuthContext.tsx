@@ -1,32 +1,57 @@
 import React, { createContext, useContext, useState, ReactNode, useCallback, useEffect } from 'react';
+import { onAuthStateChanged, signInWithPopup, signOut, updateProfile, type User as FbUser } from 'firebase/auth';
 import type { User } from '../types';
 import { fetchKycStatus } from '../services/kyc';
+import { auth, googleProvider, firebaseEnabled } from '../services/firebase';
 
 interface AuthContextType {
   user: User | null;
   isLoggedIn: boolean;
   isVerified: boolean;
-  login: (method: 'google' | 'phone', identifier: string) => void;
-  logout: () => void;
+  isAdmin: boolean; // email is in the admin allow-list
+  authReady: boolean; // true once Firebase has resolved the initial session
+  loginWithGoogle: () => Promise<void>;
+  logout: () => Promise<void>;
   completeKyc: () => void;
-  updateUser: (data: Partial<User>) => void;
+  updateUser: (data: Partial<User>) => Promise<void>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const mockUser: User = {
-    uid: '12345',
-    name: 'Raph Bet User',
-    email: 'user@raphbet.com',
-    photoURL: 'https://i.pravatar.cc/150?u=a042581f4e29026704d',
-    isVerified: false,
-};
+// Admin emails (UI convenience for routing; the backend independently enforces
+// the admin role from the verified token).
+const ADMIN_EMAILS = String((import.meta as any).env?.VITE_ADMIN_EMAILS || '')
+  .toLowerCase()
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
+
+// Map a Firebase user to our app User. Name/photo default to the Google
+// profile; if absent (e.g. phone sign-in) we fall back to a placeholder the
+// user can edit.
+const fromFirebase = (fb: FbUser): User => ({
+  uid: fb.uid,
+  name: fb.displayName || fb.email?.split('@')[0] || 'Player',
+  email: fb.email || undefined,
+  phone: fb.phoneNumber || undefined,
+  photoURL: fb.photoURL || undefined,
+  isVerified: false,
+});
 
 export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
+  const [authReady, setAuthReady] = useState(!firebaseEnabled);
 
-  // On login, sync server-side KYC status so a device that already verified
-  // doesn't have to repeat it (KYC is enforced server-side per device).
+  // Subscribe to Firebase auth state (survives refreshes).
+  useEffect(() => {
+    if (!firebaseEnabled || !auth) return;
+    return onAuthStateChanged(auth, (fb) => {
+      setUser(fb ? fromFirebase(fb) : null);
+      setAuthReady(true);
+    });
+  }, []);
+
+  // On login, sync server-side KYC status so a verified user doesn't repeat it.
   useEffect(() => {
     if (user && !user.isVerified) {
       fetchKycStatus()
@@ -35,36 +60,36 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     }
   }, [user?.uid, user?.isVerified]);
 
-  const login = useCallback((method: 'google' | 'phone', identifier: string) => {
-    // Simulate a login
-    const loggedInUser = { ...mockUser };
-    if (method === 'phone') {
-        loggedInUser.email = undefined;
-        loggedInUser.phone = identifier;
-    } else {
-        loggedInUser.email = identifier;
-        loggedInUser.phone = undefined;
-    }
-    setUser(loggedInUser);
+  const loginWithGoogle = useCallback(async () => {
+    if (!auth) throw new Error('Auth is not configured.');
+    await signInWithPopup(auth, googleProvider); // onAuthStateChanged sets the user
   }, []);
 
-  const logout = useCallback(() => {
+  const logout = useCallback(async () => {
+    if (auth) await signOut(auth);
     setUser(null);
   }, []);
-  
+
   const completeKyc = useCallback(() => {
-      setUser(currentUser => currentUser ? { ...currentUser, isVerified: true } : null);
+    setUser((u) => (u ? { ...u, isVerified: true } : null));
   }, []);
 
-  const updateUser = useCallback((data: Partial<User>) => {
-      setUser(currentUser => currentUser ? { ...currentUser, ...data } : null);
+  const updateUser = useCallback(async (data: Partial<User>) => {
+    if (auth?.currentUser && (data.name !== undefined || data.photoURL !== undefined)) {
+      await updateProfile(auth.currentUser, {
+        displayName: data.name ?? auth.currentUser.displayName ?? undefined,
+        photoURL: data.photoURL ?? auth.currentUser.photoURL ?? undefined,
+      });
+    }
+    setUser((u) => (u ? { ...u, ...data } : null));
   }, []);
 
   const isLoggedIn = !!user;
   const isVerified = user?.isVerified || false;
+  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn, isVerified, login, logout, completeKyc, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoggedIn, isVerified, isAdmin, authReady, loginWithGoogle, logout, completeKyc, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

@@ -1,4 +1,4 @@
-import { getDeviceId } from './device';
+import { identityHeaders } from './device';
 import type { PlacedBet, Transaction, BetSelection } from '../types';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8080';
@@ -18,7 +18,7 @@ async function req<T>(path: string, init?: RequestInit): Promise<T> {
     ...init,
     headers: {
       'Content-Type': 'application/json',
-      'X-Device-Id': getDeviceId(),
+      ...(await identityHeaders()),
       ...(init?.headers || {}),
     },
   });
@@ -45,7 +45,7 @@ export type TopUpResult = { kind: 'wallet'; wallet: WalletDTO } | { kind: 'redir
 export async function topUp(amount: number, method: string): Promise<TopUpResult> {
   const res = await fetch(`${API_BASE_URL}/api/wallet/topup`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId() },
+    headers: { 'Content-Type': 'application/json', ...(await identityHeaders()) },
     body: JSON.stringify({ amount, method }),
   });
   if (!res.ok) {
@@ -71,3 +71,7 @@ export const requestWithdrawal = (amount: number, address: string) =>
 
 export const placeBets = (items: PlaceItem[]) =>
   req<{ bets: PlacedBet[]; wallet: WalletDTO }>('/api/bets', { method: 'POST', body: JSON.stringify({ items }) });
+
+export const placeMultiBet = (selections: BetSelection[], wager: number) =>
+  req<{ bets: PlacedBet[]; wallet: WalletDTO }>('/api/bets', { method: 'POST', body: JSON.stringify({ isMulti: true, selections, wager }) });
+

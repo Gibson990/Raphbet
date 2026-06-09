@@ -7,7 +7,9 @@ import { BetPlacedModal, type BetPlacedInfo } from '../components/BetPlacedModal
 import { MarketsModal } from '../components/MarketsModal';
 import { PromoBanner } from '../components/PromoBanner';
 import { SoccerBallIcon, TicketIcon } from '../components/icons';
+import { MatchListSkeleton, RowsSkeleton } from '../components/common/Skeleton';
 import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
+import { winBoostPercent } from '../services/accaBoost';
 import type { League, Match, Standing, BetSelection, Outcome } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -26,6 +28,22 @@ const HomeScreen: React.FC = () => {
   const [marketsMatch, setMarketsMatch] = useState<Match | null>(null);
   const { isLoggedIn, isVerified } = useAuth();
   const navigate = useNavigate();
+
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'FINISHED'>('ALL');
+
+  const filteredMatches = useMemo(() => {
+    return matchesForLeague.filter(m => {
+      const matchSearch =
+        m.homeTeam.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.awayTeam.name.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchSearch) return false;
+
+      if (statusFilter === 'ALL') return true;
+      return m.status === statusFilter;
+    });
+  }, [matchesForLeague, searchQuery, statusFilter]);
 
   const { betSlip, addToBetSlip, removeFromBetSlip, updateWager, placeBet, clearBetSlip } = wallet;
 
@@ -92,7 +110,7 @@ const HomeScreen: React.FC = () => {
     setMarketsMatch(null);
   };
 
-  const handlePlaceBet = async () => {
+  const handlePlaceBet = async (isMulti?: boolean, multiWager?: number) => {
     if (!isLoggedIn) {
       addToast('Log in to place your bet.', 'info');
       navigate('/login');
@@ -105,14 +123,19 @@ const HomeScreen: React.FC = () => {
     }
     // Capture totals before placeBet clears the slip, for the success screen.
     const count = betSlip.length;
-    const stake = betSlip.reduce((s, b) => s + b.wager, 0);
-    const payout = betSlip.reduce((s, b) => s + b.wager * b.selection.odds, 0);
+    const stake = isMulti ? (multiWager || 0) : betSlip.reduce((s, b) => s + b.wager, 0);
+    const combinedMultiplier = betSlip.reduce((prod, b) => prod * b.selection.odds, 1);
+    const boostPercent = winBoostPercent(count);
+    const payout = isMulti
+      ? (multiWager || 0) * combinedMultiplier * (1 + boostPercent / 100)
+      : betSlip.reduce((s, b) => s + b.wager * b.selection.odds, 0);
+
     if (stake > wallet.balance) {
       addToast('Insufficient balance — top up to continue.', 'error');
       navigate('/wallet');
       return;
     }
-    const result = await placeBet();
+    const result = await placeBet(isMulti, multiWager);
     if (result.success) {
       setIsBetSlipOpen(false);
       setPlaced({ count, stake, payout });
@@ -175,15 +198,78 @@ const HomeScreen: React.FC = () => {
                 </button>
               ))}
             </div>
+            {activeTab === 'matches' && (
+              <div className="mt-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between border-b border-gray-100 dark:border-neutral-border/50 pb-4">
+                {/* Search Bar */}
+                <div className="relative flex-grow max-w-md">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
+                    <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search matches by team name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 text-sm bg-neutral-light-gray dark:bg-neutral-dark border border-gray-200 dark:border-neutral-border rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all text-neutral-dark dark:text-neutral-light-gray animate-fade-in"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Chips */}
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-none py-1">
+                  {(['ALL', 'LIVE', 'UPCOMING', 'FINISHED'] as const).map((filter) => {
+                    const isActive = statusFilter === filter;
+                    const labelMap = {
+                      ALL: 'All Matches',
+                      LIVE: '🔴 Live',
+                      UPCOMING: 'Upcoming',
+                      FINISHED: 'Finished',
+                    };
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setStatusFilter(filter)}
+                        className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all whitespace-nowrap border ${
+                          isActive
+                            ? 'bg-primary border-primary text-white shadow-sm shadow-primary/25 scale-[1.03]'
+                            : 'bg-white dark:bg-neutral-dark-gray border-gray-200 dark:border-neutral-border text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:scale-[1.02]'
+                        }`}
+                      >
+                        {labelMap[filter]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="mt-4">
               {isLoading ? (
-                <div className="flex flex-col items-center justify-center py-16 text-gray-400">
-                  <SoccerBallIcon className="h-10 w-10 animate-spin" />
-                  <p className="mt-3 text-sm">Loading World Cup matches…</p>
-                </div>
+                activeTab === 'standings'
+                  ? <RowsSkeleton rows={8} />
+                  : <MatchListSkeleton />
               ) : (
                 <>
-                  {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} onOpenMarkets={setMarketsMatch} selections={selections} />}
+                  {activeTab === 'matches' && (
+                    filteredMatches.length === 0 ? (
+                      <div className="w-full text-center py-12 bg-gray-50 dark:bg-neutral-dark border border-dashed border-gray-200 dark:border-neutral-border rounded-2xl">
+                        <p className="text-sm text-gray-400">No matches found matching your filters.</p>
+                      </div>
+                    ) : (
+                      <MatchList matches={filteredMatches} onSelectOdd={handleSelectOdd} onOpenMarkets={setMarketsMatch} selections={selections} />
+                    )
+                  )}
                   {activeTab === 'standings' && <StandingsTable standings={standingsForLeague} />}
                 </>
               )}

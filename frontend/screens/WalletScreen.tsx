@@ -42,6 +42,7 @@ const WalletScreen: React.FC = () => {
   const { balance, transactions, topUpWallet, withdrawFromWallet } = wallet;
   const [isTopUpOpen, setTopUpOpen] = useState(false);
   const [isWithdrawOpen, setWithdrawOpen] = useState(false);
+  const [visibleTx, setVisibleTx] = useState(8);
 
   return (
     <>
@@ -95,7 +96,14 @@ const WalletScreen: React.FC = () => {
           <h2 className="text-lg font-bold mb-3">Recent transactions</h2>
           <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-2 sm:p-4">
             {transactions.length > 0 ? (
-              transactions.map(t => <TransactionRow key={t.id} transaction={t} />)
+              <>
+                {transactions.slice(0, visibleTx).map(t => <TransactionRow key={t.id} transaction={t} />)}
+                {transactions.length > visibleTx && (
+                  <button onClick={() => setVisibleTx(v => v + 8)} className="w-full mt-2 py-2 text-sm font-semibold text-primary hover:underline">
+                    Show more ({transactions.length - visibleTx})
+                  </button>
+                )}
+              </>
             ) : (
               <div className="text-center text-gray-400 py-12">
                 <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-neutral-dark flex items-center justify-center mx-auto mb-3">

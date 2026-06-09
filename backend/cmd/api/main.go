@@ -19,6 +19,7 @@ import (
 	"github.com/Gibson990/Raphbet/backend/internal/config"
 	httpdelivery "github.com/Gibson990/Raphbet/backend/internal/delivery/http"
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
+	authinfra "github.com/Gibson990/Raphbet/backend/internal/infra/auth"
 	footballinfra "github.com/Gibson990/Raphbet/backend/internal/infra/football"
 	kycinfra "github.com/Gibson990/Raphbet/backend/internal/infra/kyc"
 	paymentsinfra "github.com/Gibson990/Raphbet/backend/internal/infra/payments"
@@ -30,7 +31,26 @@ import (
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/odds"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/payments"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/settlement"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/support"
 )
+
+// worldCupLeagueID is the league the betting market board and settlement worker
+// operate on (FIFA World Cup). Kept in one place so the odds resolver and the
+// results provider stay in sync.
+const worldCupLeagueID = "1"
+
+// oddsResolver adapts the football use case to betting.OddsResolver, binding the
+// lookup to the World Cup league so the betting service stays league-agnostic.
+type oddsResolver struct {
+	fs     *footballuc.Service
+	league string
+}
+
+func (r oddsResolver) OddsForSelection(matchID, marketCode string) (float64, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return r.fs.OddsForSelection(ctx, r.league, matchID, marketCode)
+}
 
 func main() {
 	cfg := config.Load()
@@ -54,28 +74,82 @@ func main() {
 	// Cache every provider behind the same TTL policy to respect free-tier limits.
 	provider = footballinfra.NewCachingProvider(provider, cfg.FixturesTTL, cfg.LiveTTL, cfg.StandingsTTL)
 
-	oddsEngine := odds.NewGeneratedEngine(cfg.HouseMargin)
-	footballService := footballuc.New(provider, oddsEngine)
-
 	// Wallet + bets persistence: MongoDB when configured, else in-memory.
 	var wallets domain.WalletRepository
 	var bets domain.BetRepository
 	var withdrawals domain.WithdrawalRepository
 	var kycStore kyc.Store
+	var processed payments.Idempotency
+	var configRepo domain.ConfigRepository
+	var tickets domain.SupportRepository
+
+	var mongoStore *store.MongoStore
+	var memStore *store.MemoryStore
+
 	if cfg.HasMongo() {
-		mongoStore, err := store.NewMongoStore(context.Background(), cfg.MongoURI, cfg.MongoDB)
+		var err error
+		mongoStore, err = store.NewMongoStore(context.Background(), cfg.MongoURI, cfg.MongoDB)
 		if err != nil {
 			log.Fatalf("mongo connection failed: %v", err)
 		}
 		defer mongoStore.Close(context.Background())
-		wallets, bets, withdrawals, kycStore = mongoStore, mongoStore, mongoStore, mongoStore
+		wallets, bets, withdrawals, kycStore, processed = mongoStore, mongoStore, mongoStore, mongoStore, mongoStore
+		configRepo = mongoStore
+		tickets = mongoStore
 		log.Printf("store: MongoDB (db %q)", cfg.MongoDB)
 	} else {
-		memStore := store.NewMemoryStore()
-		wallets, bets, withdrawals, kycStore = memStore, memStore, memStore, memStore
+		memStore = store.NewMemoryStore()
+		wallets, bets, withdrawals, kycStore, processed = memStore, memStore, memStore, memStore, memStore
+		configRepo = memStore
+		tickets = memStore
 		log.Printf("store: in-memory (set MONGO_URI to persist)")
 	}
-	bettingService := betting.New(wallets, bets, withdrawals, cfg.InitialBalance)
+
+	// Load dynamic config settings from database configuration repository
+	houseMargin := cfg.HouseMargin
+	minBet := cfg.MinBet
+	maxBet := cfg.MaxBet
+	minWithdrawal := cfg.MinWithdrawal
+	maxWithdrawal := cfg.MaxWithdrawal
+
+	dbCfg, err := configRepo.GetConfig()
+	if err != nil {
+		log.Printf("failed to load bookmaker configuration from database: %v", err)
+	}
+	if dbCfg != nil {
+		log.Printf("loaded bookmaker configuration from database: houseMargin=%.2f%%, minBet=$%.2f, maxBet=$%.2f", dbCfg.HouseMargin*100, float64(dbCfg.MinBet)/100, float64(dbCfg.MaxBet)/100)
+		houseMargin = dbCfg.HouseMargin
+		minBet = dbCfg.MinBet
+		maxBet = dbCfg.MaxBet
+		minWithdrawal = dbCfg.MinWithdrawal
+		maxWithdrawal = dbCfg.MaxWithdrawal
+	} else {
+		log.Printf("seeding database with initial bookmaker configuration from environment")
+		initialCfg := &domain.BookmakerConfig{
+			HouseMargin:   houseMargin,
+			MinBet:        minBet,
+			MaxBet:        maxBet,
+			MinWithdrawal: minWithdrawal,
+			MaxWithdrawal: maxWithdrawal,
+		}
+		if err := configRepo.SaveConfig(initialCfg); err != nil {
+			log.Printf("failed to seed initial configuration in database: %v", err)
+		}
+	}
+
+	oddsEngine := odds.NewGeneratedEngine(houseMargin)
+	footballService := footballuc.New(provider, oddsEngine)
+
+	bettingService := betting.New(wallets, bets, withdrawals, cfg.InitialBalance, betting.Limits{
+		MinBet:        minBet,
+		MaxBet:        maxBet,
+		MinWithdrawal: minWithdrawal,
+		MaxWithdrawal: maxWithdrawal,
+	})
+	// Authoritative odds: reprice every placed selection server-side so a forged
+	// "odds" field in a bet request can never inflate the payout. The World Cup is
+	// league "1"; the resolver looks selections up on the live market board.
+	bettingService.SetOddsResolver(oddsResolver{fs: footballService, league: worldCupLeagueID})
 
 	// Front-end base URL (for provider success/return redirects).
 	frontendBase := "http://localhost:3000"
@@ -88,7 +162,7 @@ func main() {
 	if cfg.HasNowPayments() {
 		cryptoProvider = paymentsinfra.NewNowPaymentsProvider(cfg.NowPaymentsBaseURL, cfg.NowPaymentsAPIKey, cfg.NowPaymentsCallbackURL, frontendBase+"/wallet")
 	}
-	paymentService := payments.New(cryptoProvider, paymentsinfra.NewSandboxProvider(), bettingService)
+	paymentService := payments.New(cryptoProvider, paymentsinfra.NewSandboxProvider(), bettingService, processed)
 	log.Printf("payments: crypto provider %q", paymentService.CryptoName())
 
 	// KYC: real Didit verifier when configured, else sandbox auto-approve.
@@ -105,12 +179,21 @@ func main() {
 	// Admin dashboard read models (computed from live data).
 	adminService := admin.New(wallets, bets, kycStore)
 
+	// Customer support tickets (registered users <-> agents).
+	supportService := support.New(tickets)
+
 	// Settlement worker: settle pending bets from real World Cup results.
-	results := settlement.NewFootballResults(footballService, "1")
+	results := settlement.NewFootballResults(footballService, worldCupLeagueID)
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
-	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret)
-	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins)
+	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, supportService, oddsEngine, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret, configRepo)
+	if cfg.FirebaseProjectID != "" {
+		handlers.SetAuth(authinfra.NewFirebaseVerifier(cfg.FirebaseProjectID), cfg.AdminEmails)
+		log.Printf("auth: Firebase token verification (project %q, %d admin email(s))", cfg.FirebaseProjectID, len(cfg.AdminEmails))
+	} else {
+		log.Printf("auth: device-id identity (Firebase not configured)")
+	}
+	router := httpdelivery.NewRouter(handlers, cfg.AllowedOrigins, cfg.RateLimitPerMin)
 
 	srv := &http.Server{
 		Addr:              ":" + cfg.Port,

@@ -23,3 +23,19 @@ export function getDeviceId(): string {
   }
   return id;
 }
+
+// identityHeaders attaches the Firebase ID token (when signed in) plus the
+// device id (fallback for guests). The backend prefers the verified token's
+// UID and falls back to the device id.
+export async function identityHeaders(): Promise<Record<string, string>> {
+  const headers: Record<string, string> = { 'X-Device-Id': getDeviceId() };
+  try {
+    // Lazy import to avoid a hard dependency / circular import at module load.
+    const { auth } = await import('./firebase');
+    const u = auth?.currentUser;
+    if (u) headers['Authorization'] = `Bearer ${await u.getIdToken()}`;
+  } catch {
+    /* not signed in / firebase unavailable — device id only */
+  }
+  return headers;
+}

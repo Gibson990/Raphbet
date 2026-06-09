@@ -3,6 +3,7 @@
 package admin
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -14,6 +15,14 @@ type KycChecker interface {
 	IsVerified(deviceID string) (bool, error)
 }
 
+type DailyStat struct {
+	Date     string       `json:"date"` // "YYYY-MM-DD"
+	Wagers   domain.Money `json:"wagers"`
+	Payouts  domain.Money `json:"payouts"`
+	GGR      domain.Money `json:"ggr"`
+	Deposits domain.Money `json:"deposits"`
+}
+
 // Stats are the headline KPIs.
 type Stats struct {
 	Users        int          `json:"users"`
@@ -23,9 +32,13 @@ type Stats struct {
 	GGR          domain.Money `json:"ggr"` // gross gaming revenue = staked - payouts (the house profit)
 	Deposits     domain.Money `json:"deposits"`
 	Withdrawals  domain.Money `json:"withdrawals"`
-	BetsPending  int          `json:"betsPending"`
+	// PendingLiability is the maximum the house would owe if every currently
+	// open (PENDING) bet were to win — the key real-time risk exposure number.
+	PendingLiability domain.Money `json:"pendingLiability"`
+	BetsPending      int          `json:"betsPending"`
 	BetsWon      int          `json:"betsWon"`
 	BetsLost     int          `json:"betsLost"`
+	Daily        []DailyStat  `json:"daily"`
 }
 
 // UserRow is one row of the users table.
@@ -35,6 +48,7 @@ type UserRow struct {
 	Verified    bool         `json:"verified"`
 	TotalStaked domain.Money `json:"totalStaked"`
 	Bets        int          `json:"bets"`
+	Suspended   bool         `json:"suspended"`
 }
 
 // BetRow is one row of the bets table.
@@ -74,12 +88,24 @@ func (s *Service) Stats() (Stats, error) {
 	}
 
 	st := Stats{Users: len(wallets)}
+	dailyMap := make(map[string]*DailyStat)
+	now := time.Now()
+	for i := 0; i < 7; i++ {
+		dStr := now.AddDate(0, 0, -i).Format("2006-01-02")
+		dailyMap[dStr] = &DailyStat{Date: dStr}
+	}
+
 	for _, w := range wallets {
 		st.TotalBalance += w.Balance
 		for _, t := range w.Transactions {
+			dStr := t.Date.Format("2006-01-02")
+			day, exists := dailyMap[dStr]
 			switch t.Type {
 			case domain.TxTopUp:
 				st.Deposits += t.Amount
+				if exists {
+					day.Deposits += t.Amount
+				}
 			case domain.TxWithdrawal:
 				st.Withdrawals += -t.Amount // stored negative
 			}
@@ -88,9 +114,17 @@ func (s *Service) Stats() (Stats, error) {
 	for _, b := range bets {
 		st.TotalStaked += b.Wager
 		st.TotalPayouts += b.Payout
+		dStr := b.PlacedDate.Format("2006-01-02")
+		day, exists := dailyMap[dStr]
+		if exists {
+			day.Wagers += b.Wager
+			day.Payouts += b.Payout
+			day.GGR += (b.Wager - b.Payout)
+		}
 		switch b.Status {
 		case domain.BetPending:
 			st.BetsPending++
+			st.PendingLiability += potentialPayout(b)
 		case domain.BetWon:
 			st.BetsWon++
 		case domain.BetLost:
@@ -98,7 +132,24 @@ func (s *Service) Stats() (Stats, error) {
 		}
 	}
 	st.GGR = st.TotalStaked - st.TotalPayouts
+
+	st.Daily = make([]DailyStat, 0, 7)
+	for i := 6; i >= 0; i-- {
+		dStr := now.AddDate(0, 0, -i).Format("2006-01-02")
+		if ds, ok := dailyMap[dStr]; ok {
+			st.Daily = append(st.Daily, *ds)
+		}
+	}
 	return st, nil
+}
+
+// potentialPayout is the amount a pending bet would pay if it wins: stake × odds
+// for a single, or stake × combined multiplier × (1 + boost) for an accumulator.
+func potentialPayout(b *domain.Bet) domain.Money {
+	if b.IsMulti {
+		return domain.Money(float64(b.Wager) * b.Multiplier * (1.0 + b.WinBoost))
+	}
+	return domain.Money(float64(b.Wager) * b.Selection.Odds)
 }
 
 // Users returns the users table (one row per wallet/device).
@@ -127,6 +178,7 @@ func (s *Service) Users() ([]UserRow, error) {
 			Verified:    verified,
 			TotalStaked: stakedBy[w.DeviceID],
 			Bets:        countBy[w.DeviceID],
+			Suspended:   w.Suspended,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].TotalStaked > rows[j].TotalStaked })
@@ -141,13 +193,21 @@ func (s *Service) Bets() ([]BetRow, error) {
 	}
 	rows := make([]BetRow, 0, len(bets))
 	for _, b := range bets {
+		match := b.Selection.MatchDescription
+		market := b.Selection.MarketLabel
+		odds := b.Selection.Odds
+		if b.IsMulti {
+			match = fmt.Sprintf("Accumulator (%d Selections)", len(b.Selections))
+			market = fmt.Sprintf("Boost: %.0f%%", b.WinBoost*100)
+			odds = b.Multiplier
+		}
 		rows = append(rows, BetRow{
 			ID:         b.ID,
 			DeviceID:   b.DeviceID,
-			Match:      b.Selection.MatchDescription,
-			Market:     b.Selection.MarketLabel,
+			Match:      match,
+			Market:     market,
 			Wager:      b.Wager,
-			Odds:       b.Selection.Odds,
+			Odds:       odds,
 			Status:     b.Status,
 			Payout:     b.Payout,
 			PlacedDate: b.PlacedDate,

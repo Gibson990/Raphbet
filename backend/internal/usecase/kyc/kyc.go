@@ -19,7 +19,7 @@ type Verifier interface {
 
 // Store persists KYC status and the device<->session mapping.
 type Store interface {
-	SetVerified(deviceID string) error
+	SetVerified(deviceID string, verified bool) error
 	IsVerified(deviceID string) (bool, error)
 	LinkSession(deviceID, sessionID string) error
 	DeviceForSession(sessionID string) (string, error)
@@ -49,7 +49,7 @@ func (s *Service) Start(ctx context.Context, deviceID string) (url string, verif
 		return "", false, err
 	}
 	if sessionID == "" { // sandbox: instant approval
-		return "", true, s.store.SetVerified(deviceID)
+		return "", true, s.store.SetVerified(deviceID, true)
 	}
 	if err := s.store.LinkSession(deviceID, sessionID); err != nil {
 		return "", false, err
@@ -71,7 +71,7 @@ func (s *Service) Check(ctx context.Context, deviceID string) (bool, error) {
 		return false, err
 	}
 	if final && approved {
-		return true, s.store.SetVerified(deviceID)
+		return true, s.store.SetVerified(deviceID, true)
 	}
 	return false, nil
 }
@@ -91,5 +91,10 @@ func (s *Service) MarkVerifiedBySession(sessionID string, approved bool) error {
 	if err != nil || deviceID == "" {
 		return err
 	}
-	return s.store.SetVerified(deviceID)
+	return s.store.SetVerified(deviceID, true)
+}
+
+// SetVerified manually sets the KYC status of a user.
+func (s *Service) SetVerified(deviceID string, verified bool) error {
+	return s.store.SetVerified(deviceID, verified)
 }

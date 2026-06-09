@@ -1,6 +1,5 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { WalletIcon } from './icons';
 import { BrandLogo } from './layout/BrandLogo';
 import { CurrencySelect } from './CurrencySelect';
 import { useAuth } from '../contexts/AuthContext';
@@ -24,15 +23,14 @@ export const Header: React.FC<HeaderProps> = ({ balance, onDeposit }) => {
         </div>
         <div className="hidden lg:block text-sm font-semibold text-gray-400">FIFA World Cup 2026</div>
 
-        <div className="flex items-center gap-2 sm:gap-3">
-          <CurrencySelect className="hidden sm:inline-flex" />
+        <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+          <CurrencySelect />
           {isLoggedIn ? (
             <>
-              <div className="flex items-center gap-2 bg-gray-100 dark:bg-neutral-dark-card px-3 py-2 rounded-xl">
-                <WalletIcon className="h-5 w-5 text-accent" />
-                <span className="font-bold text-sm sm:text-base text-neutral-dark dark:text-white tabular-nums">{format(balance)}</span>
-              </div>
-              <button onClick={onDeposit} className="bg-primary hover:bg-primary-dark text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors">
+              <button onClick={onDeposit} className="flex items-center gap-1.5 bg-gray-100 dark:bg-neutral-dark-card pl-2.5 pr-2 py-1.5 rounded-lg hover:bg-gray-200 dark:hover:bg-neutral-dark transition-colors min-w-0" aria-label="Balance — tap to deposit">
+                <span className="font-bold text-xs sm:text-sm text-neutral-dark dark:text-white tabular-nums whitespace-nowrap truncate">{format(balance)}</span>
+              </button>
+              <button onClick={onDeposit} className="bg-primary hover:bg-primary-dark text-white text-xs sm:text-sm font-bold px-3 sm:px-4 py-1.5 sm:py-2 rounded-lg transition-colors whitespace-nowrap">
                 Deposit
               </button>
             </>

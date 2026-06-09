@@ -20,6 +20,9 @@ type MemoryStore struct {
 	kyc           map[string]bool
 	deviceSession map[string]string // deviceID -> sessionID
 	sessionDevice map[string]string // sessionID -> deviceID
+	processed     map[string]bool   // idempotency keys (e.g. payment ids)
+	config        *domain.BookmakerConfig
+	tickets       map[string]*domain.SupportTicket
 }
 
 // NewMemoryStore creates an empty in-memory store.
@@ -31,7 +34,21 @@ func NewMemoryStore() *MemoryStore {
 		kyc:           make(map[string]bool),
 		deviceSession: make(map[string]string),
 		sessionDevice: make(map[string]string),
+		processed:     make(map[string]bool),
+		tickets:       make(map[string]*domain.SupportTicket),
 	}
+}
+
+// MarkProcessed records an idempotency key and reports whether it is new (true)
+// or was already processed (false).
+func (s *MemoryStore) MarkProcessed(key string) (bool, error) {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.processed[key] {
+		return false, nil
+	}
+	s.processed[key] = true
+	return true, nil
 }
 
 // ---- WithdrawalRepository ----
@@ -90,10 +107,10 @@ func (s *MemoryStore) UpdateWithdrawal(w *domain.Withdrawal) error {
 
 // ---- kyc.Store ----
 
-func (s *MemoryStore) SetVerified(deviceID string) error {
+func (s *MemoryStore) SetVerified(deviceID string, verified bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.kyc[deviceID] = true
+	s.kyc[deviceID] = verified
 	return nil
 }
 
@@ -201,6 +218,59 @@ func (s *MemoryStore) AllBets() ([]*domain.Bet, error) {
 	return out, nil
 }
 
+// ---- SupportRepository ----
+
+func (s *MemoryStore) AddTicket(t *domain.SupportTicket) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tickets[t.ID] = cloneTicket(t)
+	return nil
+}
+
+func (s *MemoryStore) GetTicket(id string) (*domain.SupportTicket, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if t, ok := s.tickets[id]; ok {
+		return cloneTicket(t), nil
+	}
+	return nil, nil
+}
+
+func (s *MemoryStore) ListTicketsByDevice(deviceID string) ([]*domain.SupportTicket, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := []*domain.SupportTicket{}
+	for _, t := range s.tickets {
+		if t.DeviceID == deviceID {
+			out = append(out, cloneTicket(t))
+		}
+	}
+	return out, nil
+}
+
+func (s *MemoryStore) AllTickets() ([]*domain.SupportTicket, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	out := make([]*domain.SupportTicket, 0, len(s.tickets))
+	for _, t := range s.tickets {
+		out = append(out, cloneTicket(t))
+	}
+	return out, nil
+}
+
+func (s *MemoryStore) UpdateTicket(t *domain.SupportTicket) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.tickets[t.ID] = cloneTicket(t)
+	return nil
+}
+
+func cloneTicket(t *domain.SupportTicket) *domain.SupportTicket {
+	cp := *t
+	cp.Messages = append([]domain.SupportMessage(nil), t.Messages...)
+	return &cp
+}
+
 // Clones prevent callers from mutating stored data through shared pointers.
 func cloneWallet(w *domain.Wallet) *domain.Wallet {
 	cp := *w
@@ -210,5 +280,29 @@ func cloneWallet(w *domain.Wallet) *domain.Wallet {
 
 func cloneBet(b *domain.Bet) *domain.Bet {
 	cp := *b
+	if b.Selections != nil {
+		cp.Selections = append([]domain.BetSelection(nil), b.Selections...)
+	}
 	return &cp
 }
+
+// GetConfig returns the stored configuration.
+func (s *MemoryStore) GetConfig() (*domain.BookmakerConfig, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.config == nil {
+		return nil, nil
+	}
+	cp := *s.config
+	return &cp, nil
+}
+
+// SaveConfig updates the stored configuration.
+func (s *MemoryStore) SaveConfig(cfg *domain.BookmakerConfig) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := *cfg
+	s.config = &cp
+	return nil
+}
+

@@ -2,7 +2,9 @@ package domain
 
 import "time"
 
-// Money is a whole-unit amount in the base currency (TZS). Cents are not used.
+// Money is an integer amount in USD cents (the wallet's base unit). Using cents
+// avoids floating-point rounding on balances; the UI converts to display
+// currency. All wagers, payouts and limits are cents.
 type Money = int64
 
 // TxType is the kind of wallet transaction.
@@ -30,6 +32,7 @@ type Wallet struct {
 	DeviceID     string        `json:"-"`
 	Balance      Money         `json:"balance"`
 	Transactions []Transaction `json:"transactions"`
+	Suspended    bool          `json:"suspended"`
 }
 
 // BetStatus is the lifecycle state of a placed bet.
@@ -52,13 +55,17 @@ type BetSelection struct {
 
 // Bet is a single placed wager.
 type Bet struct {
-	ID         string       `json:"id"`
-	DeviceID   string       `json:"-"`
-	Selection  BetSelection `json:"selection"`
-	Wager      Money        `json:"wager"`
-	Status     BetStatus    `json:"status"`
-	PlacedDate time.Time    `json:"placedDate"`
-	Payout     Money        `json:"payout"`
+	ID         string         `json:"id"`
+	DeviceID   string         `json:"-"`
+	Selection  BetSelection   `json:"selection"` // kept for compatibility with single bets
+	Selections []BetSelection `json:"selections,omitempty"`
+	Wager      Money          `json:"wager"`
+	Status     BetStatus      `json:"status"`
+	PlacedDate time.Time      `json:"placedDate"`
+	Payout     Money          `json:"payout"`
+	IsMulti    bool           `json:"isMulti"`
+	Multiplier float64        `json:"multiplier,omitempty"`
+	WinBoost   float64        `json:"winBoost,omitempty"`
 }
 
 // WithdrawalStatus is the lifecycle of a withdrawal request.
@@ -106,3 +113,19 @@ type BetRepository interface {
 	Update(b *Bet) error
 	AllBets() ([]*Bet, error) // admin
 }
+
+// BookmakerConfig holds the dynamic settings for the platform.
+type BookmakerConfig struct {
+	HouseMargin   float64 `bson:"houseMargin" json:"houseMargin"`
+	MinBet        int64   `bson:"minBet" json:"minBet"`
+	MaxBet        int64   `bson:"maxBet" json:"maxBet"`
+	MinWithdrawal int64   `bson:"minWithdrawal" json:"minWithdrawal"`
+	MaxWithdrawal int64   `bson:"maxWithdrawal" json:"maxWithdrawal"`
+}
+
+// ConfigRepository persists platform configurations.
+type ConfigRepository interface {
+	GetConfig() (*BookmakerConfig, error)
+	SaveConfig(cfg *BookmakerConfig) error
+}
+

@@ -19,6 +19,9 @@ type Config struct {
 	// AllowedOrigins is the list of front-end origins permitted by CORS.
 	AllowedOrigins []string
 
+	// RateLimitPerMin is the max requests per minute per client IP.
+	RateLimitPerMin int
+
 	// APISportsKey is the secret key for api-football (api-sports.io).
 	// When empty, the service falls back to a built-in mock provider so the
 	// app still runs locally without any credentials.
@@ -41,8 +44,14 @@ type Config struct {
 	LiveTTL      time.Duration
 	StandingsTTL time.Duration
 
-	// InitialBalance seeds a new wallet (virtual credits, in TZS).
+	// InitialBalance seeds a new wallet (USD cents).
 	InitialBalance int64
+
+	// Risk limits (USD cents).
+	MinBet        int64
+	MaxBet        int64
+	MinWithdrawal int64
+	MaxWithdrawal int64
 
 	// SettlementInterval is how often pending bets are settled from results.
 	SettlementInterval time.Duration
@@ -52,9 +61,14 @@ type Config struct {
 	MongoURI string
 	MongoDB  string
 
-	// AdminKey gates the admin dashboard API (sandbox auth). Replaced by a
-	// Firebase admin role claim when real auth lands.
+	// AdminKey gates the admin dashboard API (fallback). Firebase admin is by
+	// email allow-list (AdminEmails) once auth is configured.
 	AdminKey string
+
+	// Firebase auth. When FirebaseProjectID is set, ID tokens are verified and
+	// the UID becomes the identity; AdminEmails grants the admin role.
+	FirebaseProjectID string
+	AdminEmails       []string
 
 	// Didit KYC. When DiditAPIKey is set, the real Didit verifier is used;
 	// otherwise the sandbox auto-approves. See docs/DIDIT_SETUP.md.
@@ -88,21 +102,29 @@ func Load() Config {
 	return Config{
 		Port:             getEnv("PORT", "8080"),
 		AllowedOrigins:   splitCSV(getEnv("ALLOWED_ORIGINS", "http://localhost:3000")),
+		RateLimitPerMin:  int(getEnvInt64("RATE_LIMIT_PER_MIN", 120)),
 		APISportsKey:     strings.TrimSpace(os.Getenv("API_SPORTS_KEY")),
 		APISportsBaseURL: getEnv("API_SPORTS_BASE_URL", "https://v3.football.api-sports.io"),
 		Season:           getEnv("SEASON", "2026"),
-		HouseMargin:      getEnvFloat("HOUSE_MARGIN", 0.07),
+		HouseMargin:      getEnvFloat("HOUSE_MARGIN", 0.05), // 5% overround — competitive with top books (bet365/Pinnacle ~2–5%); tunable from admin
 		FixturesTTL:      getEnvDuration("FIXTURES_TTL", time.Hour),
 		LiveTTL:          getEnvDuration("LIVE_TTL", 30*time.Second),
 		StandingsTTL:     getEnvDuration("STANDINGS_TTL", 6*time.Hour),
 
 		InitialBalance:     getEnvInt64("INITIAL_BALANCE", 0), // USD cents; 0 = no free credits (production). Set for dev.
+		MinBet:             getEnvInt64("MIN_BET", 50),             // $0.50
+		MaxBet:             getEnvInt64("MAX_BET", 100000),         // $1,000
+		MinWithdrawal:      getEnvInt64("MIN_WITHDRAWAL", 500),     // $5
+		MaxWithdrawal:      getEnvInt64("MAX_WITHDRAWAL", 1000000), // $10,000
 		SettlementInterval: getEnvDuration("SETTLEMENT_INTERVAL", 30*time.Second),
 
 		MongoURI: strings.TrimSpace(os.Getenv("MONGO_URI")),
 		MongoDB:  getEnv("MONGO_DB", "raphbet"),
 
 		AdminKey: getEnv("ADMIN_KEY", "raphbet-admin"),
+
+		FirebaseProjectID: strings.TrimSpace(os.Getenv("FIREBASE_PROJECT_ID")),
+		AdminEmails:       splitCSV(getEnv("ADMIN_EMAILS", "")),
 
 		DiditAPIKey:        strings.TrimSpace(os.Getenv("DIDIT_API_KEY")),
 		DiditWorkflowID:    strings.TrimSpace(os.Getenv("DIDIT_WORKFLOW_ID")),

@@ -1,0 +1,33 @@
+on admin we should be able to manage users
+see graphs 
+extract pdf recipts (download) for each bet all users invoice and over roll data report
+routes state managements
+
+remove and clean those test user data 
+and i see flaching of enter adimin passcode
+admin should be able to see all active bets
+and any matches and old just the display  of it 
+
+and let me know what were missing on our admin panel
+including finacialy receords /data kpis  profile ,setting ,login logout 
+grobal currency convertion 
+
+and seam now with the admin route i can just access the admn dashboard
+also the user side can we fix this 
+
+when i press verify kyc i get direct kyc cverification complete can we fix that too
+let me know what are we missing to make our kyc functon as needed
+
+
+ 
+
+
+sokonicity:
+
+
+Local is 100% launch-ready. I've saved the full go-live runbook to memory, so next session we go straight to:
+1. Deploy — backend → Railway, frontend → Vercel
+2. Migrate data → prod Mongo (catalog + re-run the gitignored migrations + the collections seed)
+3. Payments live → AzamPay production creds + real callback URLs
+4. Config → NODE_ENV=production, rotate JWT secret, fix the Vercel \r\n
+5. Smoke test → launch 🚀

@@ -1,11 +1,11 @@
-import { getDeviceId } from './device';
+import { identityHeaders } from './device';
 
 const API_BASE_URL = (import.meta as any).env?.VITE_API_BASE_URL || 'http://localhost:8080';
 
 async function req<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
-    headers: { 'Content-Type': 'application/json', 'X-Device-Id': getDeviceId(), ...(init?.headers || {}) },
+    headers: { 'Content-Type': 'application/json', ...(await identityHeaders()), ...(init?.headers || {}) },
   });
   if (!res.ok) throw new Error(`KYC request failed (${res.status})`);
   return res.json() as Promise<T>;
@@ -19,3 +19,9 @@ export const startKyc = () => req<{ url: string; verified: boolean }>('/api/kyc/
 
 /** Poll the provider for the latest decision (used on return from the hosted flow). */
 export const checkKyc = () => req<{ verified: boolean }>('/api/kyc/check', { method: 'POST' });
+
+/** Approve the sandbox KYC session (simulating the provider's webhook decision). */
+export const approveSandboxKyc = (sessionId: string) => req<{ ok: string }>('/api/kyc/sandbox/approve', {
+  method: 'POST',
+  body: JSON.stringify({ session_id: sessionId }),
+});

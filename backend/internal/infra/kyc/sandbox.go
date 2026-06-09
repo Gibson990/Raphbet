@@ -12,9 +12,11 @@ func NewSandboxVerifier() *SandboxVerifier { return &SandboxVerifier{} }
 
 func (v *SandboxVerifier) Name() string { return "sandbox" }
 
-// StartSession returns an empty session id, signalling instant approval.
-func (v *SandboxVerifier) StartSession(_ context.Context, _ /*vendorData*/, _ /*callbackURL*/ string) (string, string, error) {
-	return "", "", nil
+// StartSession returns a simulated hosted URL to the sandbox flow.
+func (v *SandboxVerifier) StartSession(_ context.Context, vendorData, callbackURL string) (string, string, error) {
+	sessionID := "sandbox_" + vendorData
+	url := callbackURL + "/sandbox?session_id=" + sessionID
+	return url, sessionID, nil
 }
 
 // Decision is unused for the sandbox (sessions are never created).

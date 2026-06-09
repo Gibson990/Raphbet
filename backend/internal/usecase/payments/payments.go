@@ -73,19 +73,25 @@ type Crediter interface {
 	TopUp(deviceID string, amount domain.Money, method string) (*domain.Wallet, error)
 }
 
+// Idempotency dedupes async confirmations (webhooks can be retried).
+type Idempotency interface {
+	MarkProcessed(key string) (bool, error)
+}
+
 // Service orchestrates deposits: charge via the right provider for the method,
 // credit the wallet on success. The wallet is the source of truth; providers
 // only move money. Crypto routes to a dedicated provider; everything else uses
 // the fallback (sandbox until real mobile-money/card rails are added).
 type Service struct {
-	crypto   Provider // optional; used for MethodCrypto
-	fallback Provider
-	crediter Crediter
+	crypto    Provider // optional; used for MethodCrypto
+	fallback  Provider
+	crediter  Crediter
+	processed Idempotency
 }
 
 // New builds a payments service. crypto may be nil (then crypto uses fallback).
-func New(crypto, fallback Provider, crediter Crediter) *Service {
-	return &Service{crypto: crypto, fallback: fallback, crediter: crediter}
+func New(crypto, fallback Provider, crediter Crediter, processed Idempotency) *Service {
+	return &Service{crypto: crypto, fallback: fallback, crediter: crediter, processed: processed}
 }
 
 func (s *Service) providerFor(method Method) Provider {
@@ -116,8 +122,16 @@ func (s *Service) Deposit(ctx context.Context, deviceID string, amount domain.Mo
 }
 
 // ConfirmDeposit credits a wallet once an async payment is confirmed (webhook).
-func (s *Service) ConfirmDeposit(deviceID string, amount domain.Money, method string) error {
-	_, err := s.crediter.TopUp(deviceID, amount, method)
+// It is idempotent on paymentID so retried webhooks don't double-credit.
+func (s *Service) ConfirmDeposit(paymentID, deviceID string, amount domain.Money, method string) error {
+	first, err := s.processed.MarkProcessed("nowpay:" + paymentID)
+	if err != nil {
+		return err
+	}
+	if !first {
+		return nil // already credited
+	}
+	_, err = s.crediter.TopUp(deviceID, amount, method)
 	return err
 }
 

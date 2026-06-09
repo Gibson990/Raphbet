@@ -15,22 +15,29 @@ import (
 type BettingService interface {
 	Wallet(deviceID string) (*domain.Wallet, error)
 	PlaceBet(deviceID string, items []betting.PlaceItem) ([]*domain.Bet, *domain.Wallet, error)
+	PlaceMultiBet(deviceID string, selections []domain.BetSelection, wager domain.Money) (*domain.Bet, *domain.Wallet, error)
 	Bets(deviceID string) ([]*domain.Bet, error)
 	RequestWithdrawal(deviceID string, amount domain.Money, address string) (*domain.Withdrawal, error)
 	Withdrawals(deviceID string) ([]*domain.Withdrawal, error)
 	PendingWithdrawals() ([]*domain.Withdrawal, error)
 	ApproveWithdrawal(id string) (*domain.Withdrawal, error)
 	RejectWithdrawal(id, reason string) (*domain.Withdrawal, error)
+	Limits() betting.Limits
+	AdjustBalance(deviceID string, amount domain.Money, description string) (*domain.Wallet, error)
+	SetSuspended(deviceID string, suspended bool) (*domain.Wallet, error)
+	SetLimits(limits betting.Limits)
+	SettleBet(betID string, outcome domain.BetStatus) (*domain.Bet, error)
 }
 
-// deviceID extracts the per-device identity (until real auth lands in Phase 5).
-func deviceID(w http.ResponseWriter, r *http.Request) (string, bool) {
-	id := r.Header.Get("X-Device-Id")
-	if id == "" {
-		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "missing X-Device-Id"})
-		return "", false
-	}
-	return id, true
+// publicConfig exposes risk limits so the UI can show accurate min/max hints.
+func (h *Handlers) publicConfig(w http.ResponseWriter, r *http.Request) {
+	l := h.betting.Limits()
+	writeJSON(w, http.StatusOK, map[string]int64{
+		"minBet":        l.MinBet,
+		"maxBet":        l.MaxBet,
+		"minWithdrawal": l.MinWithdrawal,
+		"maxWithdrawal": l.MaxWithdrawal,
+	})
 }
 
 // bettingError maps domain errors to HTTP status codes.
@@ -38,7 +45,7 @@ func bettingError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, betting.ErrInsufficient):
 		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "insufficient balance"})
-	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending):
+	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending), errors.Is(err, betting.ErrStakeRange), errors.Is(err, betting.ErrWithdrawalRange), errors.Is(err, betting.ErrBadSelection), errors.Is(err, betting.ErrDuplicateLeg), errors.Is(err, betting.ErrTooManyLegs):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
 		writeError(w, http.StatusInternalServerError, "betting operation failed", err)
@@ -46,7 +53,7 @@ func bettingError(w http.ResponseWriter, err error) {
 }
 
 func (h *Handlers) getWallet(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -64,7 +71,7 @@ type amountRequest struct {
 }
 
 func (h *Handlers) topUp(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -90,7 +97,7 @@ func (h *Handlers) topUp(w http.ResponseWriter, r *http.Request) {
 
 // withdraw creates a crypto withdrawal request (held + pending admin approval).
 func (h *Handlers) withdraw(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -115,7 +122,7 @@ func (h *Handlers) withdraw(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listWithdrawals(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -132,10 +139,14 @@ type placeBetRequest struct {
 		Selection domain.BetSelection `json:"selection"`
 		Wager     domain.Money        `json:"wager"`
 	} `json:"items"`
+
+	IsMulti    bool                  `json:"isMulti"`
+	Selections []domain.BetSelection `json:"selections"`
+	Wager      domain.Money          `json:"wager"`
 }
 
 func (h *Handlers) placeBet(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
@@ -147,6 +158,15 @@ func (h *Handlers) placeBet(w http.ResponseWriter, r *http.Request) {
 	var req placeBetRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	if req.IsMulti {
+		bet, wallet, err := h.betting.PlaceMultiBet(id, req.Selections, req.Wager)
+		if err != nil {
+			bettingError(w, err)
+			return
+		}
+		writeJSON(w, http.StatusOK, map[string]any{"bets": []*domain.Bet{bet}, "wallet": wallet})
 		return
 	}
 	items := make([]betting.PlaceItem, 0, len(req.Items))
@@ -162,7 +182,7 @@ func (h *Handlers) placeBet(w http.ResponseWriter, r *http.Request) {
 }
 
 func (h *Handlers) listBets(w http.ResponseWriter, r *http.Request) {
-	id, ok := deviceID(w, r)
+	id, ok := h.identity(w, r)
 	if !ok {
 		return
 	}
