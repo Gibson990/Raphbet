@@ -28,6 +28,22 @@ const HomeScreen: React.FC = () => {
   const { isLoggedIn, isVerified } = useAuth();
   const navigate = useNavigate();
 
+  // Search & Filter state
+  const [searchQuery, setSearchQuery] = useState('');
+  const [statusFilter, setStatusFilter] = useState<'ALL' | 'LIVE' | 'UPCOMING' | 'FINISHED'>('ALL');
+
+  const filteredMatches = useMemo(() => {
+    return matchesForLeague.filter(m => {
+      const matchSearch =
+        m.homeTeam.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        m.awayTeam.name.toLowerCase().includes(searchQuery.toLowerCase());
+      if (!matchSearch) return false;
+
+      if (statusFilter === 'ALL') return true;
+      return m.status === statusFilter;
+    });
+  }, [matchesForLeague, searchQuery, statusFilter]);
+
   const { betSlip, addToBetSlip, removeFromBetSlip, updateWager, placeBet, clearBetSlip } = wallet;
 
   useEffect(() => {
@@ -176,6 +192,62 @@ const HomeScreen: React.FC = () => {
                 </button>
               ))}
             </div>
+            {activeTab === 'matches' && (
+              <div className="mt-4 flex flex-col sm:flex-row gap-3 items-stretch sm:items-center justify-between border-b border-gray-100 dark:border-neutral-border/50 pb-4">
+                {/* Search Bar */}
+                <div className="relative flex-grow max-w-md">
+                  <span className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400 dark:text-gray-500">
+                    <svg className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2.5">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                    </svg>
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Search matches by team name..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2 text-sm bg-neutral-light-gray dark:bg-neutral-dark border border-gray-200 dark:border-neutral-border rounded-xl placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-primary focus:border-primary transition-all text-neutral-dark dark:text-neutral-light-gray animate-fade-in"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-gray-600 dark:hover:text-gray-200"
+                    >
+                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+
+                {/* Filter Chips */}
+                <div className="flex gap-1.5 overflow-x-auto scrollbar-none py-1">
+                  {(['ALL', 'LIVE', 'UPCOMING', 'FINISHED'] as const).map((filter) => {
+                    const isActive = statusFilter === filter;
+                    const labelMap = {
+                      ALL: 'All Matches',
+                      LIVE: '🔴 Live',
+                      UPCOMING: 'Upcoming',
+                      FINISHED: 'Finished',
+                    };
+                    return (
+                      <button
+                        key={filter}
+                        onClick={() => setStatusFilter(filter)}
+                        className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all whitespace-nowrap border ${
+                          isActive
+                            ? 'bg-primary border-primary text-white shadow-sm shadow-primary/25 scale-[1.03]'
+                            : 'bg-white dark:bg-neutral-dark-gray border-gray-200 dark:border-neutral-border text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:scale-[1.02]'
+                        }`}
+                      >
+                        {labelMap[filter]}
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
             <div className="mt-4">
               {isLoading ? (
                 activeTab === 'standings'
@@ -183,7 +255,15 @@ const HomeScreen: React.FC = () => {
                   : <MatchListSkeleton />
               ) : (
                 <>
-                  {activeTab === 'matches' && <MatchList matches={matchesForLeague} onSelectOdd={handleSelectOdd} onOpenMarkets={setMarketsMatch} selections={selections} />}
+                  {activeTab === 'matches' && (
+                    filteredMatches.length === 0 ? (
+                      <div className="w-full text-center py-12 bg-gray-50 dark:bg-neutral-dark border border-dashed border-gray-200 dark:border-neutral-border rounded-2xl">
+                        <p className="text-sm text-gray-400">No matches found matching your filters.</p>
+                      </div>
+                    ) : (
+                      <MatchList matches={filteredMatches} onSelectOdd={handleSelectOdd} onOpenMarkets={setMarketsMatch} selections={selections} />
+                    )
+                  )}
                   {activeTab === 'standings' && <StandingsTable standings={standingsForLeague} />}
                 </>
               )}

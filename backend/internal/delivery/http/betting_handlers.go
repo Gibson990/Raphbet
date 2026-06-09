@@ -22,6 +22,10 @@ type BettingService interface {
 	ApproveWithdrawal(id string) (*domain.Withdrawal, error)
 	RejectWithdrawal(id, reason string) (*domain.Withdrawal, error)
 	Limits() betting.Limits
+	AdjustBalance(deviceID string, amount domain.Money, description string) (*domain.Wallet, error)
+	SetSuspended(deviceID string, suspended bool) (*domain.Wallet, error)
+	SetLimits(limits betting.Limits)
+	SettleBet(betID string, outcome domain.BetStatus) (*domain.Bet, error)
 }
 
 // publicConfig exposes risk limits so the UI can show accurate min/max hints.

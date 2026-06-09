@@ -31,6 +31,7 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux.HandleFunc("POST /api/kyc/start", h.kycStart)
 	mux.HandleFunc("POST /api/kyc/check", h.kycCheck)
 	mux.HandleFunc("POST /api/kyc/webhook", h.kycWebhook)
+	mux.HandleFunc("POST /api/kyc/sandbox/approve", h.kycSandboxApprove)
 
 	// Admin dashboard (gated by the admin key / future admin role).
 	mux.HandleFunc("GET /api/admin/stats", h.adminStats)
@@ -39,6 +40,13 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux.HandleFunc("GET /api/admin/withdrawals", h.adminWithdrawals)
 	mux.HandleFunc("POST /api/admin/withdrawals/{id}/approve", h.adminApproveWithdrawal)
 	mux.HandleFunc("POST /api/admin/withdrawals/{id}/reject", h.adminRejectWithdrawal)
+	mux.HandleFunc("POST /api/admin/users/{deviceId}/balance", h.adminAdjustUserBalance)
+	mux.HandleFunc("POST /api/admin/users/{deviceId}/kyc", h.adminSetUserKyc)
+	mux.HandleFunc("POST /api/admin/users/{deviceId}/suspend", h.adminSetUserSuspended)
+	mux.HandleFunc("GET /api/admin/config", h.adminGetConfig)
+	mux.HandleFunc("POST /api/admin/config", h.adminSetConfig)
+	mux.HandleFunc("GET /api/admin/users/{deviceId}/wallet", h.adminGetUserWallet)
+	mux.HandleFunc("POST /api/admin/bets/{id}/settle", h.adminSettleBet)
 
 	// Middleware (outermost first): logging → CORS → rate limit → body cap → mux.
 	rl := newRateLimiter(rateLimitPerMin, time.Minute)

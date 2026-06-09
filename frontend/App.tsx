@@ -9,8 +9,10 @@ import { AppLayout } from './components/layout/AppLayout';
 import { RequireAuth } from './components/layout/RequireAuth';
 import LoginScreen from './screens/LoginScreen';
 import KycScreen from './screens/KycScreen';
+import KycSandboxScreen from './screens/KycSandboxScreen';
 import LegalScreen from './screens/LegalScreen';
 import AdminScreen from './screens/AdminScreen';
+import { RequireAdmin } from './components/layout/RequireAdmin';
 import HomeScreen from './screens/HomeScreen';
 import MyBetsScreen from './screens/MyBetsScreen';
 import WalletScreen from './screens/WalletScreen';
@@ -25,13 +27,16 @@ export type ToastMessage = {
 
 export default function App() {
   const [isDarkMode, toggleDarkMode] = useDarkMode();
-  const { isLoggedIn, isVerified, completeKyc } = useAuth();
+  const { isLoggedIn, isVerified, isAdmin, completeKyc } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
-  const wallet = useVirtualWallet(1000000); // Initial balance in TSH
+  const wallet = useVirtualWallet();
 
-  // After login, return the user to the page they originally tried to open.
-  const afterLoginTarget = (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
+  // After login: admins go to the dashboard; everyone else returns to the page
+  // they originally tried to open (or home).
+  const afterLoginTarget = isAdmin
+    ? '/admin'
+    : (location.state as { from?: { pathname?: string } } | null)?.from?.pathname || '/';
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
   const addToast = useCallback((message: string, type: ToastMessage['type'] = 'info') => {
@@ -62,9 +67,17 @@ export default function App() {
             )
           }
         />
+        <Route path="/kyc/sandbox" element={<KycSandboxScreen />} />
 
-        {/* Admin dashboard (self-gated by passcode) */}
-        <Route path="/admin" element={<AdminScreen />} />
+        {/* Admin dashboard — requires Firebase login with an admin email */}
+        <Route
+          path="/admin"
+          element={
+            <RequireAdmin>
+              <AdminScreen />
+            </RequireAdmin>
+          }
+        />
 
         {/* Public legal pages */}
         <Route path="/terms" element={<LegalScreen doc="terms" />} />

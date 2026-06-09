@@ -1,27 +1,25 @@
-on small devices i see no USDT logo
-my bets,profile and  wallet the padding /margin in not good the widgets /components touch the edge
-style well the top nav as the price display widget is a bit big and uses defualf icon
+on admin we should be able to manage users
+see graphs 
+extract pdf recipts (download) for each bet all users invoice and over roll data report
+routes state managements
 
-when login user is not sent to home page
-if user login send them to home page
-we need proper state managemnet ana rooting 
+remove and clean those test user data 
+and i see flaching of enter adimin passcode
+admin should be able to see all active bets
+and any matches and old just the display  of it 
 
-the side is dragable like there is extra space  
+and let me know what were missing on our admin panel
+including finacialy receords /data kpis  profile ,setting ,login logout 
+grobal currency convertion 
 
-on mobile when user select  more market and goals the given sheet doen not give user time to access as if they select it just adds to bet slip
+and seam now with the admin route i can just access the admn dashboard
+also the user side can we fix this 
 
-last we need to plan for our support feature 
+when i press verify kyc i get direct kyc cverification complete can we fix that too
+let me know what are we missing to make our kyc functon as needed
 
-handle imput,empty states ,progress bars sucess screens ,fail screens 
 
-also the black test fonts still diaplay black in dark mode 
-
-make sure user can edit profile image and user name though the firts deafulte user name and profile image should be based on
-signup is siginup with gmail 
-if not we can request them to add user name and profile image 
-
-let me know the KYC process only works if the real auth in complete?
-
+ 
 
 
 sokonicity:

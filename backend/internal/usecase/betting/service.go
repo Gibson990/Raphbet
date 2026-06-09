@@ -31,6 +31,7 @@ type Service struct {
 	withdrawals    domain.WithdrawalRepository
 	initialBalance domain.Money
 	limits         Limits
+	limitsMu       sync.RWMutex
 	locks          sync.Map // deviceID -> *sync.Mutex, serialises wallet mutations
 }
 
@@ -42,6 +43,7 @@ func New(wallets domain.WalletRepository, bets domain.BetRepository, withdrawals
 var (
 	ErrStakeRange      = errors.New("stake is outside the allowed limits")
 	ErrWithdrawalRange = errors.New("withdrawal amount is outside the allowed limits")
+	ErrSuspended       = errors.New("account suspended")
 )
 
 // lock serialises all balance mutations for one device so concurrent requests
@@ -65,7 +67,8 @@ func (s *Service) RequestWithdrawal(deviceID string, amount domain.Money, addres
 	if amount <= 0 {
 		return nil, ErrInvalidAmount
 	}
-	if amount < s.limits.MinWithdrawal || amount > s.limits.MaxWithdrawal {
+	lim := s.Limits()
+	if amount < lim.MinWithdrawal || amount > lim.MaxWithdrawal {
 		return nil, ErrWithdrawalRange
 	}
 	if address == "" {
@@ -74,6 +77,9 @@ func (s *Service) RequestWithdrawal(deviceID string, amount domain.Money, addres
 	w, err := s.Wallet(deviceID)
 	if err != nil {
 		return nil, err
+	}
+	if w.Suspended {
+		return nil, ErrSuspended
 	}
 	if amount > w.Balance {
 		return nil, ErrInsufficient
@@ -169,6 +175,9 @@ func (s *Service) TopUp(deviceID string, amount domain.Money, method string) (*d
 	if err != nil {
 		return nil, err
 	}
+	if w.Suspended {
+		return nil, ErrSuspended
+	}
 	w.Balance += amount
 	s.addTx(w, domain.TxTopUp, amount, "Top up via "+method)
 	return w, s.wallets.Save(w)
@@ -183,6 +192,9 @@ func (s *Service) Withdraw(deviceID string, amount domain.Money, method string) 
 	w, err := s.Wallet(deviceID)
 	if err != nil {
 		return nil, err
+	}
+	if w.Suspended {
+		return nil, ErrSuspended
 	}
 	if amount > w.Balance {
 		return nil, ErrInsufficient
@@ -205,11 +217,12 @@ func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *
 		return nil, nil, ErrEmptyBet
 	}
 	var total domain.Money
+	lim := s.Limits()
 	for _, it := range items {
 		if it.Wager <= 0 {
 			return nil, nil, ErrInvalidAmount
 		}
-		if it.Wager < s.limits.MinBet || it.Wager > s.limits.MaxBet {
+		if it.Wager < lim.MinBet || it.Wager > lim.MaxBet {
 			return nil, nil, ErrStakeRange
 		}
 		total += it.Wager
@@ -217,6 +230,9 @@ func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *
 	w, err := s.Wallet(deviceID)
 	if err != nil {
 		return nil, nil, err
+	}
+	if w.Suspended {
+		return nil, nil, ErrSuspended
 	}
 	if total > w.Balance {
 		return nil, nil, ErrInsufficient
@@ -248,11 +264,73 @@ func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *
 }
 
 // Limits returns the configured risk limits (for the public config endpoint).
-func (s *Service) Limits() Limits { return s.limits }
+func (s *Service) Limits() Limits {
+	s.limitsMu.RLock()
+	defer s.limitsMu.RUnlock()
+	return s.limits
+}
+
+// SetLimits updates the risk limits.
+func (s *Service) SetLimits(limits Limits) {
+	s.limitsMu.Lock()
+	defer s.limitsMu.Unlock()
+	s.limits = limits
+}
+
+// AdjustBalance updates a device/user's wallet balance directly (admin option).
+func (s *Service) AdjustBalance(deviceID string, amount domain.Money, description string) (*domain.Wallet, error) {
+	defer s.lock(deviceID)()
+	w, err := s.Wallet(deviceID)
+	if err != nil {
+		return nil, err
+	}
+	w.Balance += amount
+	s.addTx(w, domain.TxTopUp, amount, description)
+	return w, s.wallets.Save(w)
+}
+
+// SetSuspended updates a device/user's account suspension status (admin option).
+func (s *Service) SetSuspended(deviceID string, suspended bool) (*domain.Wallet, error) {
+	defer s.lock(deviceID)()
+	w, err := s.Wallet(deviceID)
+	if err != nil {
+		return nil, err
+	}
+	w.Suspended = suspended
+	return w, s.wallets.Save(w)
+}
 
 // Bets returns all bets for a device, pending first then newest.
 func (s *Service) Bets(deviceID string) ([]*domain.Bet, error) {
 	return s.bets.ListByDevice(deviceID)
+}
+
+// SettleBet manually resolves a pending bet as WON or LOST (admin override).
+// If outcome is WON, payout = wager * odds is credited to the wallet.
+func (s *Service) SettleBet(betID string, outcome domain.BetStatus) (*domain.Bet, error) {
+	pending, err := s.bets.ListPending()
+	if err != nil {
+		return nil, err
+	}
+	var bet *domain.Bet
+	for _, b := range pending {
+		if b.ID == betID {
+			bet = b
+			break
+		}
+	}
+	if bet == nil {
+		return nil, errors.New("bet not found or already settled")
+	}
+	bet.Status = outcome
+	if outcome == domain.BetWon {
+		payout := domain.Money(float64(bet.Wager) * bet.Selection.Odds)
+		bet.Payout = payout
+		if err := s.CreditPayout(bet.DeviceID, payout, fmt.Sprintf("Winnings: %s", bet.Selection.MatchDescription)); err != nil {
+			return nil, err
+		}
+	}
+	return bet, s.bets.Update(bet)
 }
 
 // CreditPayout adds winnings to a wallet. Used by the settlement worker.

@@ -28,13 +28,13 @@ export const CurrencySelect: React.FC<{ className?: string }> = ({ className = '
       <button
         onClick={openDrawer}
         aria-label="Display currency"
-        className={`inline-flex items-center gap-1.5 bg-gray-100 dark:bg-neutral-dark-card hover:bg-gray-200 dark:hover:bg-neutral-border rounded-xl px-3 py-2 text-sm font-semibold transition-colors ${className}`}
+        className={`inline-flex items-center gap-1 sm:gap-1.5 bg-gray-100 dark:bg-neutral-dark-card hover:bg-gray-200 dark:hover:bg-neutral-border rounded-lg px-2 sm:px-3 py-1.5 sm:py-2 text-sm font-semibold transition-colors ${className}`}
       >
         {current && (current.flag
           ? <img src={current.flag} alt="" className="h-3.5 w-5 rounded-sm object-cover" />
-          : <UsdtMark className="h-4 w-4" />)}
-        <span>{code}</span>
-        <ChevronDownIcon className="h-4 w-4 text-gray-400" />
+          : <UsdtMark className="h-4 w-4 shrink-0" />)}
+        <span className="hidden sm:inline">{code}</span>
+        <ChevronDownIcon className="h-4 w-4 text-gray-400 shrink-0" />
       </button>
 
       {open && createPortal(

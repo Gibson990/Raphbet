@@ -60,6 +60,40 @@ func Evaluate(code string, r Result) (won bool, done bool) {
 		return !(r.FTHome > 0 && r.FTAway > 0), true
 	}
 
+	// ── Double Chance ──────────────────────────────────────────────────────────
+	switch code {
+	case "1X":
+		return r.FTHome >= r.FTAway, true // home win or draw
+	case "12":
+		return r.FTHome != r.FTAway, true // any team wins (no draw)
+	case "X2":
+		return r.FTAway >= r.FTHome, true // away win or draw
+	}
+
+	// ── Half-Time Result ───────────────────────────────────────────────────────
+	if r.HasHT {
+		switch code {
+		case "HT1":
+			return r.HTHome > r.HTAway, true
+		case "HTX":
+			return r.HTHome == r.HTAway, true
+		case "HT2":
+			return r.HTAway > r.HTHome, true
+		}
+	}
+
+	// ── Correct Score (CS_h_a) ─────────────────────────────────────────────────
+	if strings.HasPrefix(code, "CS_") {
+		parts2 := strings.Split(code, "_")
+		if len(parts2) == 3 {
+			h, eh := strconv.Atoi(parts2[1])
+			a, ea := strconv.Atoi(parts2[2])
+			if eh == nil && ea == nil {
+				return r.FTHome == h && r.FTAway == a, true
+			}
+		}
+	}
+
 	parts := strings.Split(code, "_")
 	switch {
 	case strings.HasPrefix(code, "FH_OU_") && len(parts) == 4:

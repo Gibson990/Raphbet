@@ -69,6 +69,7 @@ type KycService interface {
 	Check(ctx context.Context, deviceID string) (bool, error)
 	Status(deviceID string) (bool, error)
 	MarkVerifiedBySession(sessionID string, approved bool) error
+	SetVerified(deviceID string, verified bool) error
 }
 
 func (h *Handlers) kycStatus(w http.ResponseWriter, r *http.Request) {
@@ -140,6 +141,26 @@ func (h *Handlers) kycWebhook(w http.ResponseWriter, r *http.Request) {
 	approved := equalFold(payload.Status, "Approved")
 	if err := h.kyc.MarkVerifiedBySession(payload.SessionID, approved); err != nil {
 		writeError(w, http.StatusInternalServerError, "webhook processing failed", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})
+}
+
+// kycSandboxApprove allows the frontend mock verification screen to approve a sandbox session.
+func (h *Handlers) kycSandboxApprove(w http.ResponseWriter, r *http.Request) {
+	var req struct {
+		SessionID string `json:"session_id"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
+		return
+	}
+	if !(len(req.SessionID) >= 8 && req.SessionID[:8] == "sandbox_") {
+		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "only sandbox sessions can be auto-approved"})
+		return
+	}
+	if err := h.kyc.MarkVerifiedBySession(req.SessionID, true); err != nil {
+		writeError(w, http.StatusInternalServerError, "sandbox approval failed", err)
 		return
 	}
 	writeJSON(w, http.StatusOK, map[string]string{"ok": "true"})

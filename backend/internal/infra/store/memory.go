@@ -21,6 +21,7 @@ type MemoryStore struct {
 	deviceSession map[string]string // deviceID -> sessionID
 	sessionDevice map[string]string // sessionID -> deviceID
 	processed     map[string]bool   // idempotency keys (e.g. payment ids)
+	config        *domain.BookmakerConfig
 }
 
 // NewMemoryStore creates an empty in-memory store.
@@ -104,10 +105,10 @@ func (s *MemoryStore) UpdateWithdrawal(w *domain.Withdrawal) error {
 
 // ---- kyc.Store ----
 
-func (s *MemoryStore) SetVerified(deviceID string) error {
+func (s *MemoryStore) SetVerified(deviceID string, verified bool) error {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.kyc[deviceID] = true
+	s.kyc[deviceID] = verified
 	return nil
 }
 
@@ -226,3 +227,24 @@ func cloneBet(b *domain.Bet) *domain.Bet {
 	cp := *b
 	return &cp
 }
+
+// GetConfig returns the stored configuration.
+func (s *MemoryStore) GetConfig() (*domain.BookmakerConfig, error) {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	if s.config == nil {
+		return nil, nil
+	}
+	cp := *s.config
+	return &cp, nil
+}
+
+// SaveConfig updates the stored configuration.
+func (s *MemoryStore) SaveConfig(cfg *domain.BookmakerConfig) error {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	cp := *cfg
+	s.config = &cp
+	return nil
+}
+

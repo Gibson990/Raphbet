@@ -8,6 +8,7 @@ interface AuthContextType {
   user: User | null;
   isLoggedIn: boolean;
   isVerified: boolean;
+  isAdmin: boolean; // email is in the admin allow-list
   authReady: boolean; // true once Firebase has resolved the initial session
   loginWithGoogle: () => Promise<void>;
   logout: () => Promise<void>;
@@ -16,6 +17,14 @@ interface AuthContextType {
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
+
+// Admin emails (UI convenience for routing; the backend independently enforces
+// the admin role from the verified token).
+const ADMIN_EMAILS = String((import.meta as any).env?.VITE_ADMIN_EMAILS || '')
+  .toLowerCase()
+  .split(',')
+  .map((s) => s.trim())
+  .filter(Boolean);
 
 // Map a Firebase user to our app User. Name/photo default to the Google
 // profile; if absent (e.g. phone sign-in) we fall back to a placeholder the
@@ -77,9 +86,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
 
   const isLoggedIn = !!user;
   const isVerified = user?.isVerified || false;
+  const isAdmin = !!user?.email && ADMIN_EMAILS.includes(user.email.toLowerCase());
 
   return (
-    <AuthContext.Provider value={{ user, isLoggedIn, isVerified, authReady, loginWithGoogle, logout, completeKyc, updateUser }}>
+    <AuthContext.Provider value={{ user, isLoggedIn, isVerified, isAdmin, authReady, loginWithGoogle, logout, completeKyc, updateUser }}>
       {children}
     </AuthContext.Provider>
   );

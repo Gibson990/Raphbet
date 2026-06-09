@@ -14,6 +14,14 @@ type KycChecker interface {
 	IsVerified(deviceID string) (bool, error)
 }
 
+type DailyStat struct {
+	Date     string       `json:"date"` // "YYYY-MM-DD"
+	Wagers   domain.Money `json:"wagers"`
+	Payouts  domain.Money `json:"payouts"`
+	GGR      domain.Money `json:"ggr"`
+	Deposits domain.Money `json:"deposits"`
+}
+
 // Stats are the headline KPIs.
 type Stats struct {
 	Users        int          `json:"users"`
@@ -26,6 +34,7 @@ type Stats struct {
 	BetsPending  int          `json:"betsPending"`
 	BetsWon      int          `json:"betsWon"`
 	BetsLost     int          `json:"betsLost"`
+	Daily        []DailyStat  `json:"daily"`
 }
 
 // UserRow is one row of the users table.
@@ -35,6 +44,7 @@ type UserRow struct {
 	Verified    bool         `json:"verified"`
 	TotalStaked domain.Money `json:"totalStaked"`
 	Bets        int          `json:"bets"`
+	Suspended   bool         `json:"suspended"`
 }
 
 // BetRow is one row of the bets table.
@@ -74,12 +84,24 @@ func (s *Service) Stats() (Stats, error) {
 	}
 
 	st := Stats{Users: len(wallets)}
+	dailyMap := make(map[string]*DailyStat)
+	now := time.Now()
+	for i := 0; i < 7; i++ {
+		dStr := now.AddDate(0, 0, -i).Format("2006-01-02")
+		dailyMap[dStr] = &DailyStat{Date: dStr}
+	}
+
 	for _, w := range wallets {
 		st.TotalBalance += w.Balance
 		for _, t := range w.Transactions {
+			dStr := t.Date.Format("2006-01-02")
+			day, exists := dailyMap[dStr]
 			switch t.Type {
 			case domain.TxTopUp:
 				st.Deposits += t.Amount
+				if exists {
+					day.Deposits += t.Amount
+				}
 			case domain.TxWithdrawal:
 				st.Withdrawals += -t.Amount // stored negative
 			}
@@ -88,6 +110,13 @@ func (s *Service) Stats() (Stats, error) {
 	for _, b := range bets {
 		st.TotalStaked += b.Wager
 		st.TotalPayouts += b.Payout
+		dStr := b.PlacedDate.Format("2006-01-02")
+		day, exists := dailyMap[dStr]
+		if exists {
+			day.Wagers += b.Wager
+			day.Payouts += b.Payout
+			day.GGR += (b.Wager - b.Payout)
+		}
 		switch b.Status {
 		case domain.BetPending:
 			st.BetsPending++
@@ -98,6 +127,14 @@ func (s *Service) Stats() (Stats, error) {
 		}
 	}
 	st.GGR = st.TotalStaked - st.TotalPayouts
+
+	st.Daily = make([]DailyStat, 0, 7)
+	for i := 6; i >= 0; i-- {
+		dStr := now.AddDate(0, 0, -i).Format("2006-01-02")
+		if ds, ok := dailyMap[dStr]; ok {
+			st.Daily = append(st.Daily, *ds)
+		}
+	}
 	return st, nil
 }
 
@@ -127,6 +164,7 @@ func (s *Service) Users() ([]UserRow, error) {
 			Verified:    verified,
 			TotalStaked: stakedBy[w.DeviceID],
 			Bets:        countBy[w.DeviceID],
+			Suspended:   w.Suspended,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].TotalStaked > rows[j].TotalStaked })

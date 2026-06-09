@@ -19,3 +19,9 @@ export const startKyc = () => req<{ url: string; verified: boolean }>('/api/kyc/
 
 /** Poll the provider for the latest decision (used on return from the hosted flow). */
 export const checkKyc = () => req<{ verified: boolean }>('/api/kyc/check', { method: 'POST' });
+
+/** Approve the sandbox KYC session (simulating the provider's webhook decision). */
+export const approveSandboxKyc = (sessionId: string) => req<{ ok: string }>('/api/kyc/sandbox/approve', {
+  method: 'POST',
+  body: JSON.stringify({ session_id: sessionId }),
+});

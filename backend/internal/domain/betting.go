@@ -30,6 +30,7 @@ type Wallet struct {
 	DeviceID     string        `json:"-"`
 	Balance      Money         `json:"balance"`
 	Transactions []Transaction `json:"transactions"`
+	Suspended    bool          `json:"suspended"`
 }
 
 // BetStatus is the lifecycle state of a placed bet.
@@ -106,3 +107,19 @@ type BetRepository interface {
 	Update(b *Bet) error
 	AllBets() ([]*Bet, error) // admin
 }
+
+// BookmakerConfig holds the dynamic settings for the platform.
+type BookmakerConfig struct {
+	HouseMargin   float64 `bson:"houseMargin" json:"houseMargin"`
+	MinBet        int64   `bson:"minBet" json:"minBet"`
+	MaxBet        int64   `bson:"maxBet" json:"maxBet"`
+	MinWithdrawal int64   `bson:"minWithdrawal" json:"minWithdrawal"`
+	MaxWithdrawal int64   `bson:"maxWithdrawal" json:"maxWithdrawal"`
+}
+
+// ConfigRepository persists platform configurations.
+type ConfigRepository interface {
+	GetConfig() (*BookmakerConfig, error)
+	SaveConfig(cfg *BookmakerConfig) error
+}
+

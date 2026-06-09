@@ -22,6 +22,7 @@ type MongoStore struct {
 	kyc         *mongo.Collection
 	withdrawals *mongo.Collection
 	processed   *mongo.Collection
+	config      *mongo.Collection
 }
 
 const opTimeout = 8 * time.Second
@@ -40,7 +41,15 @@ func NewMongoStore(ctx context.Context, uri, dbName string) (*MongoStore, error)
 	}
 
 	db := client.Database(dbName)
-	s := &MongoStore{client: client, wallets: db.Collection("wallets"), bets: db.Collection("bets"), kyc: db.Collection("kyc"), withdrawals: db.Collection("withdrawals"), processed: db.Collection("processed")}
+	s := &MongoStore{
+		client:      client,
+		wallets:     db.Collection("wallets"),
+		bets:        db.Collection("bets"),
+		kyc:         db.Collection("kyc"),
+		withdrawals: db.Collection("withdrawals"),
+		processed:   db.Collection("processed"),
+		config:      db.Collection("config"),
+	}
 
 	// Indexes for the access patterns we use.
 	_, _ = s.bets.Indexes().CreateMany(connectCtx, []mongo.IndexModel{
@@ -74,6 +83,7 @@ type walletDoc struct {
 	DeviceID     string               `bson:"_id"`
 	Balance      domain.Money         `bson:"balance"`
 	Transactions []domain.Transaction `bson:"transactions"`
+	Suspended    bool                 `bson:"suspended"`
 }
 
 type betDoc struct {
@@ -111,14 +121,14 @@ func (s *MongoStore) Get(deviceID string) (*domain.Wallet, error) {
 	if doc.Transactions == nil {
 		doc.Transactions = []domain.Transaction{}
 	}
-	return &domain.Wallet{DeviceID: doc.DeviceID, Balance: doc.Balance, Transactions: doc.Transactions}, nil
+	return &domain.Wallet{DeviceID: doc.DeviceID, Balance: doc.Balance, Transactions: doc.Transactions, Suspended: doc.Suspended}, nil
 }
 
 func (s *MongoStore) Save(w *domain.Wallet) error {
 	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 	defer cancel()
 
-	doc := walletDoc{DeviceID: w.DeviceID, Balance: w.Balance, Transactions: w.Transactions}
+	doc := walletDoc{DeviceID: w.DeviceID, Balance: w.Balance, Transactions: w.Transactions, Suspended: w.Suspended}
 	_, err := s.wallets.ReplaceOne(ctx, bson.M{"_id": w.DeviceID}, doc, options.Replace().SetUpsert(true))
 	return err
 }
@@ -142,7 +152,7 @@ func (s *MongoStore) AllWallets() ([]*domain.Wallet, error) {
 		if d.Transactions == nil {
 			d.Transactions = []domain.Transaction{}
 		}
-		out = append(out, &domain.Wallet{DeviceID: d.DeviceID, Balance: d.Balance, Transactions: d.Transactions})
+		out = append(out, &domain.Wallet{DeviceID: d.DeviceID, Balance: d.Balance, Transactions: d.Transactions, Suspended: d.Suspended})
 	}
 	return out, cur.Err()
 }
@@ -177,10 +187,10 @@ func (s *MongoStore) Update(b *domain.Bet) error {
 
 // ---- kyc.Store ----
 
-func (s *MongoStore) SetVerified(deviceID string) error {
+func (s *MongoStore) SetVerified(deviceID string, verified bool) error {
 	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 	defer cancel()
-	_, err := s.kyc.UpdateOne(ctx, bson.M{"_id": deviceID}, bson.M{"$set": bson.M{"verified": true}}, options.Update().SetUpsert(true))
+	_, err := s.kyc.UpdateOne(ctx, bson.M{"_id": deviceID}, bson.M{"$set": bson.M{"verified": verified}}, options.Update().SetUpsert(true))
 	return err
 }
 
@@ -328,3 +338,29 @@ func (s *MongoStore) find(filter bson.M) ([]*domain.Bet, error) {
 	}
 	return out, cur.Err()
 }
+
+// GetConfig returns the stored configuration.
+func (s *MongoStore) GetConfig() (*domain.BookmakerConfig, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+
+	var cfg domain.BookmakerConfig
+	err := s.config.FindOne(ctx, bson.M{"_id": "global"}).Decode(&cfg)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return &cfg, nil
+}
+
+// SaveConfig updates the stored configuration.
+func (s *MongoStore) SaveConfig(cfg *domain.BookmakerConfig) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+
+	_, err := s.config.ReplaceOne(ctx, bson.M{"_id": "global"}, cfg, options.Replace().SetUpsert(true))
+	return err
+}
+

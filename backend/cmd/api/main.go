@@ -55,33 +55,74 @@ func main() {
 	// Cache every provider behind the same TTL policy to respect free-tier limits.
 	provider = footballinfra.NewCachingProvider(provider, cfg.FixturesTTL, cfg.LiveTTL, cfg.StandingsTTL)
 
-	oddsEngine := odds.NewGeneratedEngine(cfg.HouseMargin)
-	footballService := footballuc.New(provider, oddsEngine)
-
 	// Wallet + bets persistence: MongoDB when configured, else in-memory.
 	var wallets domain.WalletRepository
 	var bets domain.BetRepository
 	var withdrawals domain.WithdrawalRepository
 	var kycStore kyc.Store
 	var processed payments.Idempotency
+	var configRepo domain.ConfigRepository
+
+	var mongoStore *store.MongoStore
+	var memStore *store.MemoryStore
+
 	if cfg.HasMongo() {
-		mongoStore, err := store.NewMongoStore(context.Background(), cfg.MongoURI, cfg.MongoDB)
+		var err error
+		mongoStore, err = store.NewMongoStore(context.Background(), cfg.MongoURI, cfg.MongoDB)
 		if err != nil {
 			log.Fatalf("mongo connection failed: %v", err)
 		}
 		defer mongoStore.Close(context.Background())
 		wallets, bets, withdrawals, kycStore, processed = mongoStore, mongoStore, mongoStore, mongoStore, mongoStore
+		configRepo = mongoStore
 		log.Printf("store: MongoDB (db %q)", cfg.MongoDB)
 	} else {
-		memStore := store.NewMemoryStore()
+		memStore = store.NewMemoryStore()
 		wallets, bets, withdrawals, kycStore, processed = memStore, memStore, memStore, memStore, memStore
+		configRepo = memStore
 		log.Printf("store: in-memory (set MONGO_URI to persist)")
 	}
+
+	// Load dynamic config settings from database configuration repository
+	houseMargin := cfg.HouseMargin
+	minBet := cfg.MinBet
+	maxBet := cfg.MaxBet
+	minWithdrawal := cfg.MinWithdrawal
+	maxWithdrawal := cfg.MaxWithdrawal
+
+	dbCfg, err := configRepo.GetConfig()
+	if err != nil {
+		log.Printf("failed to load bookmaker configuration from database: %v", err)
+	}
+	if dbCfg != nil {
+		log.Printf("loaded bookmaker configuration from database: houseMargin=%.2f%%, minBet=$%.2f, maxBet=$%.2f", dbCfg.HouseMargin*100, float64(dbCfg.MinBet)/100, float64(dbCfg.MaxBet)/100)
+		houseMargin = dbCfg.HouseMargin
+		minBet = dbCfg.MinBet
+		maxBet = dbCfg.MaxBet
+		minWithdrawal = dbCfg.MinWithdrawal
+		maxWithdrawal = dbCfg.MaxWithdrawal
+	} else {
+		log.Printf("seeding database with initial bookmaker configuration from environment")
+		initialCfg := &domain.BookmakerConfig{
+			HouseMargin:   houseMargin,
+			MinBet:        minBet,
+			MaxBet:        maxBet,
+			MinWithdrawal: minWithdrawal,
+			MaxWithdrawal: maxWithdrawal,
+		}
+		if err := configRepo.SaveConfig(initialCfg); err != nil {
+			log.Printf("failed to seed initial configuration in database: %v", err)
+		}
+	}
+
+	oddsEngine := odds.NewGeneratedEngine(houseMargin)
+	footballService := footballuc.New(provider, oddsEngine)
+
 	bettingService := betting.New(wallets, bets, withdrawals, cfg.InitialBalance, betting.Limits{
-		MinBet:        cfg.MinBet,
-		MaxBet:        cfg.MaxBet,
-		MinWithdrawal: cfg.MinWithdrawal,
-		MaxWithdrawal: cfg.MaxWithdrawal,
+		MinBet:        minBet,
+		MaxBet:        maxBet,
+		MinWithdrawal: minWithdrawal,
+		MaxWithdrawal: maxWithdrawal,
 	})
 
 	// Front-end base URL (for provider success/return redirects).
@@ -116,7 +157,7 @@ func main() {
 	results := settlement.NewFootballResults(footballService, "1")
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
-	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret)
+	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, oddsEngine, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret, configRepo)
 	if cfg.FirebaseProjectID != "" {
 		handlers.SetAuth(authinfra.NewFirebaseVerifier(cfg.FirebaseProjectID), cfg.AdminEmails)
 		log.Printf("auth: Firebase token verification (project %q, %d admin email(s))", cfg.FirebaseProjectID, len(cfg.AdminEmails))

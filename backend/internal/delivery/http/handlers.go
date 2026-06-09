@@ -10,6 +10,7 @@ import (
 	"strings"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/odds"
 )
 
 // FootballService is the use case port the handlers depend on.
@@ -26,21 +27,35 @@ type TokenVerifier interface {
 
 // Handlers holds the dependencies for the HTTP handlers.
 type Handlers struct {
-	football FootballService
-	betting  BettingService
-	payments PaymentsService
-	kyc      KycService
+	football             FootballService
+	betting              BettingService
+	payments             PaymentsService
+	kyc                  KycService
 	admin                AdminService
+	oddsEngine           *odds.GeneratedEngine
 	adminKey             string
 	kycWebhookSecret     string
 	nowpaymentsIPNSecret string
 	auth                 TokenVerifier   // nil until Firebase is configured
 	adminEmails          map[string]bool // admin role allow-list
+	configRepo           domain.ConfigRepository
 }
 
 // NewHandlers wires the handlers to their use case services.
-func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService, admin AdminService, adminKey, kycWebhookSecret, nowpaymentsIPNSecret string) *Handlers {
-	return &Handlers{football: football, betting: betting, payments: payments, kyc: kyc, admin: admin, adminKey: adminKey, kycWebhookSecret: kycWebhookSecret, nowpaymentsIPNSecret: nowpaymentsIPNSecret, adminEmails: map[string]bool{}}
+func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService, admin AdminService, oddsEngine *odds.GeneratedEngine, adminKey, kycWebhookSecret, nowpaymentsIPNSecret string, configRepo domain.ConfigRepository) *Handlers {
+	return &Handlers{
+		football:             football,
+		betting:              betting,
+		payments:             payments,
+		kyc:                  kyc,
+		admin:                admin,
+		oddsEngine:           oddsEngine,
+		adminKey:             adminKey,
+		kycWebhookSecret:     kycWebhookSecret,
+		nowpaymentsIPNSecret: nowpaymentsIPNSecret,
+		adminEmails:          map[string]bool{},
+		configRepo:           configRepo,
+	}
 }
 
 // SetAuth enables Firebase token verification + the admin email allow-list.
