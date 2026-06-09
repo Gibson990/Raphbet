@@ -41,6 +41,10 @@ import {
   fetchAdminConfig, saveAdminConfig, fetchUserWallet, settleBet,
   type AdminStats, type AdminUser, type AdminBet, type AdminWithdrawal, type AdminConfig, type AdminUserWallet, type DailyStat
 } from '../services/admin';
+import {
+  fetchAllTickets, adminReplyTicket, adminCloseTicket,
+  type SupportTicket,
+} from '../services/support';
 
 // ─── KPI Stat Card (redesigned) ───────────────────────────────────────────────
 const StatCard: React.FC<{
@@ -274,13 +278,15 @@ const AdminScreen: React.FC = () => {
   const [authed, setAuthed] = useState(false);
   const [loading, setLoading] = useState(true);
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' } | null>(null);
-  const [tab, setTab] = useState<'overview' | 'users' | 'bets' | 'withdrawals' | 'settings'>('overview');
+  const [tab, setTab] = useState<'overview' | 'users' | 'bets' | 'withdrawals' | 'support' | 'settings'>('overview');
 
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [bets, setBets] = useState<AdminBet[]>([]);
   const [withdrawals, setWithdrawals] = useState<AdminWithdrawal[]>([]);
   const [config, setConfig] = useState<AdminConfig | null>(null);
+  const [tickets, setTickets] = useState<SupportTicket[]>([]);
+  const [replyDrafts, setReplyDrafts] = useState<Record<string, string>>({});
 
   // Filters
   const [searchUser, setSearchUser] = useState('');
@@ -310,18 +316,20 @@ const AdminScreen: React.FC = () => {
 
   const load = useCallback(async () => {
     try {
-      const [s, u, b, wd, cfg] = await Promise.all([
+      const [s, u, b, wd, cfg, tk] = await Promise.all([
         fetchAdminStats(''),
         fetchAdminUsers(''),
         fetchAdminBets(''),
         fetchAdminWithdrawals(''),
-        fetchAdminConfig('')
+        fetchAdminConfig(''),
+        fetchAllTickets().catch(() => [] as SupportTicket[]),
       ]);
       setStats(s);
       setUsers(u);
       setBets(b);
       setWithdrawals(wd);
       setConfig(cfg);
+      setTickets(tk);
       setMarginInput((cfg.houseMargin * 100).toFixed(1));
       setMinBetInput((cfg.minBet / 100).toString());
       setMaxBetInput((cfg.maxBet / 100).toString());
@@ -432,6 +440,29 @@ const AdminScreen: React.FC = () => {
       await load();
     } catch {
       showToast('Failed to settle bet.', 'error');
+    }
+  };
+
+  const handleTicketReply = async (id: string) => {
+    const body = (replyDrafts[id] || '').trim();
+    if (!body) return;
+    try {
+      await adminReplyTicket(id, body);
+      setReplyDrafts(d => ({ ...d, [id]: '' }));
+      showToast('Reply sent.');
+      await load();
+    } catch {
+      showToast('Failed to send reply.', 'error');
+    }
+  };
+
+  const handleTicketClose = async (id: string) => {
+    try {
+      await adminCloseTicket(id);
+      showToast('Ticket closed.');
+      await load();
+    } catch {
+      showToast('Failed to close ticket.', 'error');
     }
   };
 
@@ -743,13 +774,14 @@ const AdminScreen: React.FC = () => {
       <main className="max-w-7xl mx-auto px-4 sm:px-6 py-6 pb-20">
         {/* Navigation Tabs */}
         <div className="bg-white/80 dark:bg-neutral-dark-gray/80 backdrop-blur-md border border-gray-100 dark:border-neutral-border/50 rounded-2xl p-1.5 flex gap-1 mb-8 overflow-x-auto whitespace-nowrap scrollbar-none shadow-sm">
-          {(['overview', 'users', 'bets', 'withdrawals', 'settings'] as const).map(t => {
+          {(['overview', 'users', 'bets', 'withdrawals', 'support', 'settings'] as const).map(t => {
             const isActive = tab === t;
             const labelMap = {
               overview: '📊 Overview',
               users: '👥 Players',
               bets: '🎟️ Bets Board',
               withdrawals: '🏦 Withdrawals',
+              support: '💬 Support',
               settings: '⚙️ Settings',
             };
             return (
@@ -769,6 +801,11 @@ const AdminScreen: React.FC = () => {
                 {t === 'bets' && bets.filter(b => b.status === 'PENDING').length > 0 ? (
                   <span className={`ml-1 px-2 py-0.5 text-[9px] font-black rounded-full ${isActive ? 'bg-white text-primary' : 'bg-amber-500 text-white'}`}>
                     {bets.filter(b => b.status === 'PENDING').length}
+                  </span>
+                ) : ''}
+                {t === 'support' && tickets.filter(tk => tk.status === 'OPEN').length > 0 ? (
+                  <span className={`ml-1 px-2 py-0.5 text-[9px] font-black rounded-full ${isActive ? 'bg-white text-primary' : 'bg-danger text-white animate-pulse'}`}>
+                    {tickets.filter(tk => tk.status === 'OPEN').length}
                   </span>
                 ) : ''}
               </button>
@@ -844,6 +881,16 @@ const AdminScreen: React.FC = () => {
                 icon={<BetsIcon />}
                 iconBg="bg-indigo-500/10"
                 iconColor="text-indigo-500"
+              />
+              <StatCard
+                label="Open Risk Exposure"
+                value={formatCurrency(stats.pendingLiability ?? 0)}
+                accent={(stats.pendingLiability ?? 0) > stats.totalBalance ? 'text-danger' : 'text-neutral-dark dark:text-white'}
+                sub={`max payout owed on ${stats.betsPending} open bet${stats.betsPending === 1 ? '' : 's'}`}
+                trend={(stats.pendingLiability ?? 0) > stats.totalBalance ? 'down' : 'neutral'}
+                icon={<Zap />}
+                iconBg="bg-red-500/10"
+                iconColor="text-red-500"
               />
             </div>
 
@@ -1129,7 +1176,74 @@ const AdminScreen: React.FC = () => {
           </div>
         )}
 
-        {/* ── Tab 5: Settings ────────────────────────────────────────────── */}
+        {/* ── Tab 5: Support ─────────────────────────────────────────────── */}
+        {tab === 'support' && (
+          <div className="space-y-4">
+            {tickets.length === 0 ? (
+              <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-12 text-center text-gray-400">
+                <Activity className="w-10 h-10 mx-auto mb-3 text-gray-200 dark:text-neutral-border" />
+                <p className="text-sm font-medium">No support tickets yet.</p>
+                <p className="text-xs mt-1">Player messages will appear here for you to answer.</p>
+              </div>
+            ) : (
+              tickets.map(tk => {
+                const betRow = tk.betRef ? bets.find(b => b.id === tk.betRef || b.id.startsWith(tk.betRef!)) : undefined;
+                return (
+                  <div key={tk.id} className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-5 shadow-sm">
+                    <div className="flex justify-between items-start gap-3 mb-3">
+                      <div className="min-w-0">
+                        <p className="font-bold dark:text-white truncate">{tk.subject}</p>
+                        <p className="text-[11px] font-mono text-gray-400 mt-0.5 truncate" title={tk.id}>player ref: {tk.id.slice(0, 12)}</p>
+                        {tk.betRef && (
+                          <p className="text-[11px] text-primary mt-1">
+                            Linked bet #{tk.betRef.slice(0, 10)}
+                            {betRow ? ` · ${betRow.match} (${betRow.market}, ${formatCurrency(betRow.wager)})` : ' · (bet not found)'}
+                          </p>
+                        )}
+                      </div>
+                      <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full shrink-0 ${
+                        tk.status === 'OPEN' ? 'bg-amber-500/10 text-amber-600 border border-amber-500/20'
+                        : tk.status === 'ANSWERED' ? 'bg-success/10 text-success border border-success/20'
+                        : 'bg-gray-200 text-gray-500 dark:bg-neutral-dark dark:text-gray-400'
+                      }`}>{tk.status}</span>
+                    </div>
+
+                    <div className="space-y-2 max-h-64 overflow-y-auto mb-3">
+                      {tk.messages.map(m => (
+                        <div key={m.id} className={`flex ${m.from === 'admin' ? 'justify-end' : 'justify-start'}`}>
+                          <div className={`max-w-[80%] rounded-2xl px-3.5 py-2 text-xs ${
+                            m.from === 'admin' ? 'bg-primary text-white rounded-br-sm' : 'bg-gray-100 dark:bg-neutral-dark text-neutral-dark dark:text-gray-200 rounded-bl-sm'
+                          }`}>
+                            <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                            <p className={`text-[9px] mt-1 ${m.from === 'admin' ? 'text-white/70' : 'text-gray-400'}`}>
+                              {m.from === 'admin' ? 'You' : 'Player'} · {new Date(m.date).toLocaleString()}
+                            </p>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {tk.status !== 'CLOSED' && (
+                      <div className="flex gap-2">
+                        <input
+                          value={replyDrafts[tk.id] || ''}
+                          onChange={e => setReplyDrafts(d => ({ ...d, [tk.id]: e.target.value }))}
+                          onKeyDown={e => e.key === 'Enter' && handleTicketReply(tk.id)}
+                          placeholder="Write a reply to the player…"
+                          className="flex-grow px-3 py-2 text-xs border border-gray-200 dark:border-neutral-border rounded-lg bg-transparent focus:outline-none focus:border-primary dark:text-white"
+                        />
+                        <button onClick={() => handleTicketReply(tk.id)} className="bg-primary text-white text-xs font-bold px-4 rounded-lg hover:bg-primary-dark transition-colors">Reply</button>
+                        <button onClick={() => handleTicketClose(tk.id)} className="bg-transparent border border-gray-200 dark:border-neutral-border text-gray-400 hover:text-danger hover:border-danger text-xs font-bold px-3 rounded-lg transition-all">Close</button>
+                      </div>
+                    )}
+                  </div>
+                );
+              })
+            )}
+          </div>
+        )}
+
+        {/* ── Tab 6: Settings ────────────────────────────────────────────── */}
         {tab === 'settings' && config && (
           <div className="max-w-xl space-y-6">
             <form onSubmit={handleSaveConfig} className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-6 shadow-sm space-y-6">

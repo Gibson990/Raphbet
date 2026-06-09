@@ -110,3 +110,33 @@ func (s *Service) Matches(ctx context.Context, leagueID string) ([]domain.Match,
 func (s *Service) Standings(ctx context.Context, leagueID string) ([]domain.Standing, error) {
 	return s.provider.Standings(ctx, leagueID)
 }
+
+// OddsForSelection returns the canonical, server-computed odds for a market
+// outcome on a match. It is the single source of truth used to validate bets:
+// the placement path recomputes prices here instead of trusting the client, so
+// a forged "odds" field in the request can never inflate a payout. Returns
+// (price, true) when the match is bettable and the outcome code is on the board.
+func (s *Service) OddsForSelection(ctx context.Context, leagueID, matchID, marketCode string) (float64, bool) {
+	matches, err := s.Matches(ctx, leagueID)
+	if err != nil {
+		return 0, false
+	}
+	for i := range matches {
+		if matches[i].ID != matchID {
+			continue
+		}
+		// Finished matches carry no market board — they are no longer bettable.
+		if matches[i].Status == domain.StatusFinished {
+			return 0, false
+		}
+		for _, mkt := range matches[i].Markets {
+			for _, oc := range mkt.Outcomes {
+				if oc.Code == marketCode {
+					return oc.Odds, true
+				}
+			}
+		}
+		return 0, false
+	}
+	return 0, false
+}

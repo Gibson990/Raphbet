@@ -17,6 +17,7 @@ import HomeScreen from './screens/HomeScreen';
 import MyBetsScreen from './screens/MyBetsScreen';
 import WalletScreen from './screens/WalletScreen';
 import ProfileScreen from './screens/ProfileScreen';
+import SupportScreen from './screens/SupportScreen';
 import NotFoundScreen from './screens/NotFoundScreen';
 
 export type ToastMessage = {
@@ -91,6 +92,7 @@ export default function App() {
             <Route path="bets" element={<MyBetsScreen />} />
             <Route path="wallet" element={<WalletScreen />} />
             <Route path="profile" element={<ProfileScreen />} />
+            <Route path="support" element={<SupportScreen />} />
           </Route>
           <Route path="*" element={<NotFoundScreen />} />
         </Route>

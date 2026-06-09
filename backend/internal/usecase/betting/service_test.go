@@ -50,6 +50,84 @@ func TestConcurrentBetsNeverOverdraw(t *testing.T) {
 	}
 }
 
+// fixedOdds is a test OddsResolver: it prices a known selection and rejects
+// anything else, standing in for the live market board.
+type fixedOdds struct{ price float64 }
+
+func (f fixedOdds) OddsForSelection(matchID, marketCode string) (float64, bool) {
+	if matchID == "m1" && marketCode == "1" {
+		return f.price, true
+	}
+	return 0, false
+}
+
+// A forged client "odds" field must be ignored: the server reprices from its own
+// engine, so the payout is bounded by the canonical price, not the client's.
+func TestPlaceBetRepricesServerSide(t *testing.T) {
+	mem := store.NewMemoryStore()
+	svc := New(mem, mem, mem, 10000, testLimits)
+	svc.SetOddsResolver(fixedOdds{price: 1.90})
+	const dev = "device-odds"
+
+	items := []PlaceItem{{
+		Selection: domain.BetSelection{MatchID: "m1", Market: "1", Odds: 1000.0}, // forged
+		Wager:     100,
+	}}
+	placed, _, err := svc.PlaceBet(dev, items)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if got := placed[0].Selection.Odds; got != 1.90 {
+		t.Fatalf("expected server price 1.90, got %v", got)
+	}
+}
+
+// Selections that aren't on the board (unknown match/market) must be rejected.
+func TestPlaceBetRejectsUnknownSelection(t *testing.T) {
+	mem := store.NewMemoryStore()
+	svc := New(mem, mem, mem, 10000, testLimits)
+	svc.SetOddsResolver(fixedOdds{price: 1.90})
+	items := []PlaceItem{{
+		Selection: domain.BetSelection{MatchID: "ghost", Market: "1", Odds: 2.0},
+		Wager:     100,
+	}}
+	if _, _, err := svc.PlaceBet("dev", items); err != ErrBadSelection {
+		t.Fatalf("expected ErrBadSelection, got %v", err)
+	}
+}
+
+// An accumulator may not list the same match twice.
+func TestPlaceMultiBetRejectsDuplicateLegs(t *testing.T) {
+	mem := store.NewMemoryStore()
+	svc := New(mem, mem, mem, 10000, testLimits)
+	svc.SetOddsResolver(fixedOdds{price: 1.90})
+	sels := []domain.BetSelection{
+		{MatchID: "m1", Market: "1", Odds: 1.9},
+		{MatchID: "m1", Market: "1", Odds: 1.9},
+	}
+	if _, _, err := svc.PlaceMultiBet("dev", sels, 100); err != ErrDuplicateLeg {
+		t.Fatalf("expected ErrDuplicateLeg, got %v", err)
+	}
+}
+
+// The acca boost ladder must be monotonic and capped at 100% (bet365-aligned).
+func TestWinBoostLadderCapped(t *testing.T) {
+	if CalculateWinBoost(1) != 0 {
+		t.Fatal("single leg must not be boosted")
+	}
+	prev := -1.0
+	for legs := 2; legs <= 25; legs++ {
+		b := CalculateWinBoost(legs)
+		if b < prev {
+			t.Fatalf("ladder not monotonic at %d legs: %v < %v", legs, b, prev)
+		}
+		if b > 1.0 {
+			t.Fatalf("boost exceeds 100%% cap at %d legs: %v", legs, b)
+		}
+		prev = b
+	}
+}
+
 // Refund on reject must restore exactly the held amount.
 func TestWithdrawalRejectRefunds(t *testing.T) {
 	mem := store.NewMemoryStore()

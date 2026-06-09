@@ -3,6 +3,7 @@
 package admin
 
 import (
+	"fmt"
 	"sort"
 	"time"
 
@@ -31,7 +32,10 @@ type Stats struct {
 	GGR          domain.Money `json:"ggr"` // gross gaming revenue = staked - payouts (the house profit)
 	Deposits     domain.Money `json:"deposits"`
 	Withdrawals  domain.Money `json:"withdrawals"`
-	BetsPending  int          `json:"betsPending"`
+	// PendingLiability is the maximum the house would owe if every currently
+	// open (PENDING) bet were to win — the key real-time risk exposure number.
+	PendingLiability domain.Money `json:"pendingLiability"`
+	BetsPending      int          `json:"betsPending"`
 	BetsWon      int          `json:"betsWon"`
 	BetsLost     int          `json:"betsLost"`
 	Daily        []DailyStat  `json:"daily"`
@@ -120,6 +124,7 @@ func (s *Service) Stats() (Stats, error) {
 		switch b.Status {
 		case domain.BetPending:
 			st.BetsPending++
+			st.PendingLiability += potentialPayout(b)
 		case domain.BetWon:
 			st.BetsWon++
 		case domain.BetLost:
@@ -136,6 +141,15 @@ func (s *Service) Stats() (Stats, error) {
 		}
 	}
 	return st, nil
+}
+
+// potentialPayout is the amount a pending bet would pay if it wins: stake × odds
+// for a single, or stake × combined multiplier × (1 + boost) for an accumulator.
+func potentialPayout(b *domain.Bet) domain.Money {
+	if b.IsMulti {
+		return domain.Money(float64(b.Wager) * b.Multiplier * (1.0 + b.WinBoost))
+	}
+	return domain.Money(float64(b.Wager) * b.Selection.Odds)
 }
 
 // Users returns the users table (one row per wallet/device).
@@ -179,13 +193,21 @@ func (s *Service) Bets() ([]BetRow, error) {
 	}
 	rows := make([]BetRow, 0, len(bets))
 	for _, b := range bets {
+		match := b.Selection.MatchDescription
+		market := b.Selection.MarketLabel
+		odds := b.Selection.Odds
+		if b.IsMulti {
+			match = fmt.Sprintf("Accumulator (%d Selections)", len(b.Selections))
+			market = fmt.Sprintf("Boost: %.0f%%", b.WinBoost*100)
+			odds = b.Multiplier
+		}
 		rows = append(rows, BetRow{
 			ID:         b.ID,
 			DeviceID:   b.DeviceID,
-			Match:      b.Selection.MatchDescription,
-			Market:     b.Selection.MarketLabel,
+			Match:      match,
+			Market:     market,
 			Wager:      b.Wager,
-			Odds:       b.Selection.Odds,
+			Odds:       odds,
 			Status:     b.Status,
 			Payout:     b.Payout,
 			PlacedDate: b.PlacedDate,

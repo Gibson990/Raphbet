@@ -106,7 +106,7 @@ func Load() Config {
 		APISportsKey:     strings.TrimSpace(os.Getenv("API_SPORTS_KEY")),
 		APISportsBaseURL: getEnv("API_SPORTS_BASE_URL", "https://v3.football.api-sports.io"),
 		Season:           getEnv("SEASON", "2026"),
-		HouseMargin:      getEnvFloat("HOUSE_MARGIN", 0.07),
+		HouseMargin:      getEnvFloat("HOUSE_MARGIN", 0.05), // 5% overround — competitive with top books (bet365/Pinnacle ~2–5%); tunable from admin
 		FixturesTTL:      getEnvDuration("FIXTURES_TTL", time.Hour),
 		LiveTTL:          getEnvDuration("LIVE_TTL", 30*time.Second),
 		StandingsTTL:     getEnvDuration("STANDINGS_TTL", 6*time.Hour),

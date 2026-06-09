@@ -23,6 +23,11 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux.HandleFunc("POST /api/bets", h.placeBet)
 	mux.HandleFunc("GET /api/withdrawals", h.listWithdrawals)
 
+	// Customer support (registered users open + reply to their own tickets).
+	mux.HandleFunc("POST /api/support", h.createTicket)
+	mux.HandleFunc("GET /api/support", h.listMyTickets)
+	mux.HandleFunc("POST /api/support/{id}/reply", h.replyTicket)
+
 	// Crypto payment confirmation (NOWPayments IPN).
 	mux.HandleFunc("POST /api/payments/nowpayments/webhook", h.nowpaymentsWebhook)
 
@@ -47,6 +52,9 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux.HandleFunc("POST /api/admin/config", h.adminSetConfig)
 	mux.HandleFunc("GET /api/admin/users/{deviceId}/wallet", h.adminGetUserWallet)
 	mux.HandleFunc("POST /api/admin/bets/{id}/settle", h.adminSettleBet)
+	mux.HandleFunc("GET /api/admin/support", h.adminListTickets)
+	mux.HandleFunc("POST /api/admin/support/{id}/reply", h.adminReplyTicket)
+	mux.HandleFunc("POST /api/admin/support/{id}/close", h.adminCloseTicket)
 
 	// Middleware (outermost first): logging → CORS → rate limit → body cap → mux.
 	rl := newRateLimiter(rateLimitPerMin, time.Minute)

@@ -32,6 +32,7 @@ type Handlers struct {
 	payments             PaymentsService
 	kyc                  KycService
 	admin                AdminService
+	support              SupportService
 	oddsEngine           *odds.GeneratedEngine
 	adminKey             string
 	kycWebhookSecret     string
@@ -42,13 +43,14 @@ type Handlers struct {
 }
 
 // NewHandlers wires the handlers to their use case services.
-func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService, admin AdminService, oddsEngine *odds.GeneratedEngine, adminKey, kycWebhookSecret, nowpaymentsIPNSecret string, configRepo domain.ConfigRepository) *Handlers {
+func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService, admin AdminService, support SupportService, oddsEngine *odds.GeneratedEngine, adminKey, kycWebhookSecret, nowpaymentsIPNSecret string, configRepo domain.ConfigRepository) *Handlers {
 	return &Handlers{
 		football:             football,
 		betting:              betting,
 		payments:             payments,
 		kyc:                  kyc,
 		admin:                admin,
+		support:              support,
 		oddsEngine:           oddsEngine,
 		adminKey:             adminKey,
 		kycWebhookSecret:     kycWebhookSecret,

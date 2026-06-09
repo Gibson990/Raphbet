@@ -1,18 +1,19 @@
 import { useState, useCallback, useEffect } from 'react';
-import type { Bet, BetSelection, PlacedBet, Transaction } from '../types';
-import { fetchWallet, fetchBets, topUp, requestWithdrawal, placeBets } from '../services/wallet';
+import type { Bet, PlacedBet, Transaction } from '../types';
+import { fetchWallet, fetchBets, topUp, requestWithdrawal, placeBets, placeMultiBet } from '../services/wallet';
 
 type Result = { success: boolean; message: string; redirectUrl?: string };
 
-const sortBets = (bets: PlacedBet[]): PlacedBet[] =>
-  [...bets].sort((a, b) => new Date(b.placedDate).getTime() - new Date(a.placedDate).getTime());
+function sortBets(arr: PlacedBet[]): PlacedBet[] {
+  return [...arr].sort((a, b) => new Date(b.placedDate).getTime() - new Date(a.placedDate).getTime());
+}
 
 /**
  * Backend-backed wallet. Balance, transactions and placed bets live on the
  * server (and settle there); only the in-progress bet slip is local. The hook
  * polls so settled bets and credited winnings appear automatically.
  */
-export const useVirtualWallet = (_initialBalance?: number) => {
+export function useVirtualWallet() {
   const [balance, setBalance] = useState<number>(0);
   const [betSlip, setBetSlip] = useState<Bet[]>([]);
   const [placedBets, setPlacedBets] = useState<PlacedBet[]>([]);
@@ -24,8 +25,8 @@ export const useVirtualWallet = (_initialBalance?: number) => {
       setBalance(w.balance);
       setTransactions(w.transactions);
       setPlacedBets(sortBets(b));
-    } catch (err) {
-      console.warn('wallet refresh failed:', err);
+    } catch {
+      /* silent fallback */
     }
   }, []);
 
@@ -37,13 +38,12 @@ export const useVirtualWallet = (_initialBalance?: number) => {
   }, [refresh]);
 
   // ---- Bet slip (local draft) ----
-  const addToBetSlip = useCallback((selection: BetSelection) => {
+  const addToBetSlip = useCallback((selection: Bet['selection']) => {
     setBetSlip((prev) => {
-      const existing = prev.find((b) => b.selection.matchId === selection.matchId);
-      if (existing) {
-        return prev.map((b) => (b.selection.matchId === selection.matchId ? { selection, wager: b.wager || 500 } : b));
-      }
-      return [...prev, { selection, wager: 500 }]; // default $5 (USD cents)
+      // Remove match collisions: a player can only have one active prediction
+      // per match on a slip (otherwise multi-bets make no sense).
+      const clean = prev.filter((b) => b.selection.matchId !== selection.matchId);
+      return [...clean, { selection, wager: 0 }];
     });
   }, []);
 
@@ -58,7 +58,21 @@ export const useVirtualWallet = (_initialBalance?: number) => {
   const clearBetSlip = useCallback(() => setBetSlip([]), []);
 
   // ---- Server operations ----
-  const placeBet = useCallback(async (): Promise<Result> => {
+  const placeBet = useCallback(async (isMulti?: boolean, multiWager?: number): Promise<Result> => {
+    if (isMulti) {
+      if (!multiWager || multiWager <= 0) return { success: false, message: 'Wager must be positive.' };
+      try {
+        const selections = betSlip.map((b) => b.selection);
+        const res = await placeMultiBet(selections, multiWager);
+        setBalance(res.wallet.balance);
+        setTransactions(res.wallet.transactions);
+        setPlacedBets((prev) => sortBets([...res.bets, ...prev]));
+        clearBetSlip();
+        return { success: true, message: `Successfully placed accumulator bet!` };
+      } catch (err) {
+        return { success: false, message: err instanceof Error ? err.message : 'Failed to place bet.' };
+      }
+    }
     const total = betSlip.reduce((sum, b) => sum + b.wager, 0);
     if (total <= 0) return { success: false, message: 'Wager must be positive.' };
     try {

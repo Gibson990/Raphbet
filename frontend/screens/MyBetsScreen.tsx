@@ -24,22 +24,50 @@ const BetStatusBadge: React.FC<BetStatusBadgeProps> = ({ status }) => {
 
 const BetHistoryCard: React.FC<{ bet: PlacedBet }> = ({ bet }) => {
   const { format } = useCurrency();
+
+  // An accumulator carries multiple legs and a combined multiplier + win boost;
+  // a single bet pays stake × odds. Compute the potential payout the same way
+  // the server does so the displayed "To Win" matches what actually settles.
+  const isMulti = !!bet.isMulti && Array.isArray(bet.selections) && bet.selections.length > 0;
+  const legs = bet.selections ?? [bet.selection];
+  const combinedOdds = isMulti ? (bet.multiplier ?? legs.reduce((p, s) => p * s.odds, 1)) : bet.selection.odds;
+  const boost = bet.winBoost ?? 0;
+  const potentialWin = bet.wager * combinedOdds * (1 + boost);
+
   const getPayoutText = () => {
-    if (bet.status === 'WON') {
-      return `+${format(bet.payout || 0)}`;
-    }
-    if (bet.status === 'LOST') {
-      return `-${format(bet.wager)}`;
-    }
-    return format(bet.wager * bet.selection.odds);
+    if (bet.status === 'WON') return `+${format(bet.payout || 0)}`;
+    if (bet.status === 'LOST') return `-${format(bet.wager)}`;
+    return format(potentialWin);
   };
 
   return (
     <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-gray-700 rounded-lg shadow-sm p-4">
-      <div className="flex justify-between items-start">
-        <div>
-          <p className="font-bold">{bet.selection.marketLabel} @ {bet.selection.odds.toFixed(2)}</p>
-          <p className="text-sm text-gray-500 dark:text-gray-400">{bet.selection.matchDescription}</p>
+      <div className="flex justify-between items-start gap-3">
+        <div className="min-w-0">
+          {isMulti ? (
+            <>
+              <div className="flex items-center gap-2 flex-wrap">
+                <p className="font-bold">Accumulator · {legs.length} legs</p>
+                <span className="text-xs font-bold text-primary bg-primary/10 px-2 py-0.5 rounded-full tabular-nums">@ {combinedOdds.toFixed(2)}</span>
+                {boost > 0 && (
+                  <span className="text-xs font-bold text-purple-600 bg-purple-100 dark:bg-purple-900/40 dark:text-purple-300 px-2 py-0.5 rounded-full">+{Math.round(boost * 100)}% boost</span>
+                )}
+              </div>
+              <ul className="mt-2 space-y-1">
+                {legs.map((s, i) => (
+                  <li key={`${s.matchId}-${i}`} className="text-sm text-gray-600 dark:text-gray-300 flex justify-between gap-2">
+                    <span className="truncate"><span className="font-semibold">{s.marketLabel}</span> · {s.matchDescription}</span>
+                    <span className="tabular-nums text-gray-400 shrink-0">{s.odds.toFixed(2)}</span>
+                  </li>
+                ))}
+              </ul>
+            </>
+          ) : (
+            <>
+              <p className="font-bold">{bet.selection.marketLabel} @ {bet.selection.odds.toFixed(2)}</p>
+              <p className="text-sm text-gray-500 dark:text-gray-400">{bet.selection.matchDescription}</p>
+            </>
+          )}
           <p className="text-xs text-gray-400 dark:text-gray-500 mt-1">
             Placed: {new Date(bet.placedDate).toLocaleString()}
           </p>

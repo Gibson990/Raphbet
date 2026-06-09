@@ -26,6 +26,7 @@ export interface AdminStats {
   ggr: number;
   deposits: number;
   withdrawals: number;
+  pendingLiability: number;
   betsPending: number;
   betsWon: number;
   betsLost: number;

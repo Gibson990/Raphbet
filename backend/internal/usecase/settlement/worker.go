@@ -5,6 +5,7 @@ package settlement
 
 import (
 	"context"
+	"fmt"
 	"log"
 	"math"
 	"time"
@@ -70,6 +71,50 @@ func (w *Worker) settleOnce(ctx context.Context) int {
 
 	settled := 0
 	for _, b := range pending {
+		if b.IsMulti {
+			lost := false
+			pendingLegs := 0
+			for _, sel := range b.Selections {
+				result, ok := results[sel.MatchID]
+				if !ok {
+					pendingLegs++
+					continue
+				}
+				won, done := markets.Evaluate(sel.Market, result)
+				if !done {
+					pendingLegs++
+					continue
+				}
+				if !won {
+					lost = true
+					break
+				}
+			}
+			if lost {
+				b.Status = domain.BetLost
+				b.Payout = 0
+				if err := w.bets.Update(b); err != nil {
+					log.Printf("settlement: update error: %v", err)
+					continue
+				}
+				settled++
+			} else if pendingLegs == 0 {
+				b.Status = domain.BetWon
+				b.Payout = domain.Money(math.Round(float64(b.Wager) * b.Multiplier * (1.0 + b.WinBoost)))
+				desc := fmt.Sprintf("Win: Accumulator (%d legs) with %.0f%% Boost", len(b.Selections), b.WinBoost*100)
+				if err := w.crediter.CreditPayout(b.DeviceID, b.Payout, desc); err != nil {
+					log.Printf("settlement: credit error: %v", err)
+					continue
+				}
+				if err := w.bets.Update(b); err != nil {
+					log.Printf("settlement: update error: %v", err)
+					continue
+				}
+				settled++
+			}
+			continue
+		}
+
 		result, ok := results[b.Selection.MatchID]
 		if !ok {
 			continue // match not finished yet

@@ -23,6 +23,7 @@ type MongoStore struct {
 	withdrawals *mongo.Collection
 	processed   *mongo.Collection
 	config      *mongo.Collection
+	tickets     *mongo.Collection
 }
 
 const opTimeout = 8 * time.Second
@@ -49,6 +50,7 @@ func NewMongoStore(ctx context.Context, uri, dbName string) (*MongoStore, error)
 		withdrawals: db.Collection("withdrawals"),
 		processed:   db.Collection("processed"),
 		config:      db.Collection("config"),
+		tickets:     db.Collection("support_tickets"),
 	}
 
 	// Indexes for the access patterns we use.
@@ -56,6 +58,7 @@ func NewMongoStore(ctx context.Context, uri, dbName string) (*MongoStore, error)
 		{Keys: bson.D{{Key: "deviceId", Value: 1}}},
 		{Keys: bson.D{{Key: "status", Value: 1}}},
 	})
+	_, _ = s.tickets.Indexes().CreateOne(connectCtx, mongo.IndexModel{Keys: bson.D{{Key: "deviceId", Value: 1}}})
 	return s, nil
 }
 
@@ -87,21 +90,49 @@ type walletDoc struct {
 }
 
 type betDoc struct {
-	ID         string              `bson:"_id"`
-	DeviceID   string              `bson:"deviceId"`
-	Selection  domain.BetSelection `bson:"selection"`
-	Wager      domain.Money        `bson:"wager"`
-	Status     domain.BetStatus    `bson:"status"`
-	PlacedDate time.Time           `bson:"placedDate"`
-	Payout     domain.Money        `bson:"payout"`
+	ID         string                `bson:"_id"`
+	DeviceID   string                `bson:"deviceId"`
+	Selection  domain.BetSelection   `bson:"selection"`
+	Selections []domain.BetSelection `bson:"selections,omitempty"`
+	Wager      domain.Money          `bson:"wager"`
+	Status     domain.BetStatus      `bson:"status"`
+	PlacedDate time.Time             `bson:"placedDate"`
+	Payout     domain.Money          `bson:"payout"`
+	IsMulti    bool                  `bson:"isMulti"`
+	Multiplier float64               `bson:"multiplier,omitempty"`
+	WinBoost   float64               `bson:"winBoost,omitempty"`
 }
 
 func toBetDoc(b *domain.Bet) betDoc {
-	return betDoc{ID: b.ID, DeviceID: b.DeviceID, Selection: b.Selection, Wager: b.Wager, Status: b.Status, PlacedDate: b.PlacedDate, Payout: b.Payout}
+	return betDoc{
+		ID:         b.ID,
+		DeviceID:   b.DeviceID,
+		Selection:  b.Selection,
+		Selections: b.Selections,
+		Wager:      b.Wager,
+		Status:     b.Status,
+		PlacedDate: b.PlacedDate,
+		Payout:     b.Payout,
+		IsMulti:    b.IsMulti,
+		Multiplier: b.Multiplier,
+		WinBoost:   b.WinBoost,
+	}
 }
 
 func (d betDoc) toDomain() *domain.Bet {
-	return &domain.Bet{ID: d.ID, DeviceID: d.DeviceID, Selection: d.Selection, Wager: d.Wager, Status: d.Status, PlacedDate: d.PlacedDate, Payout: d.Payout}
+	return &domain.Bet{
+		ID:         d.ID,
+		DeviceID:   d.DeviceID,
+		Selection:  d.Selection,
+		Selections: d.Selections,
+		Wager:      d.Wager,
+		Status:     d.Status,
+		PlacedDate: d.PlacedDate,
+		Payout:     d.Payout,
+		IsMulti:    d.IsMulti,
+		Multiplier: d.Multiplier,
+		WinBoost:   d.WinBoost,
+	}
 }
 
 // ---- WalletRepository ----
@@ -331,6 +362,85 @@ func (s *MongoStore) find(filter bson.M) ([]*domain.Bet, error) {
 	out := []*domain.Bet{}
 	for cur.Next(ctx) {
 		var d betDoc
+		if err := cur.Decode(&d); err != nil {
+			return nil, err
+		}
+		out = append(out, d.toDomain())
+	}
+	return out, cur.Err()
+}
+
+// ---- SupportRepository ----
+
+type ticketDoc struct {
+	ID          string                  `bson:"_id"`
+	DeviceID    string                  `bson:"deviceId"`
+	Subject     string                  `bson:"subject"`
+	BetRef      string                  `bson:"betRef,omitempty"`
+	Status      domain.SupportStatus    `bson:"status"`
+	Messages    []domain.SupportMessage `bson:"messages"`
+	CreatedDate time.Time               `bson:"createdDate"`
+	UpdatedDate time.Time               `bson:"updatedDate"`
+}
+
+func toTicketDoc(t *domain.SupportTicket) ticketDoc {
+	return ticketDoc{ID: t.ID, DeviceID: t.DeviceID, Subject: t.Subject, BetRef: t.BetRef, Status: t.Status, Messages: t.Messages, CreatedDate: t.CreatedDate, UpdatedDate: t.UpdatedDate}
+}
+
+func (d ticketDoc) toDomain() *domain.SupportTicket {
+	if d.Messages == nil {
+		d.Messages = []domain.SupportMessage{}
+	}
+	return &domain.SupportTicket{ID: d.ID, DeviceID: d.DeviceID, Subject: d.Subject, BetRef: d.BetRef, Status: d.Status, Messages: d.Messages, CreatedDate: d.CreatedDate, UpdatedDate: d.UpdatedDate}
+}
+
+func (s *MongoStore) AddTicket(t *domain.SupportTicket) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	_, err := s.tickets.InsertOne(ctx, toTicketDoc(t))
+	return err
+}
+
+func (s *MongoStore) GetTicket(id string) (*domain.SupportTicket, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	var d ticketDoc
+	err := s.tickets.FindOne(ctx, bson.M{"_id": id}).Decode(&d)
+	if errors.Is(err, mongo.ErrNoDocuments) {
+		return nil, nil
+	}
+	if err != nil {
+		return nil, err
+	}
+	return d.toDomain(), nil
+}
+
+func (s *MongoStore) ListTicketsByDevice(deviceID string) ([]*domain.SupportTicket, error) {
+	return s.findTickets(bson.M{"deviceId": deviceID})
+}
+
+func (s *MongoStore) AllTickets() ([]*domain.SupportTicket, error) {
+	return s.findTickets(bson.M{})
+}
+
+func (s *MongoStore) UpdateTicket(t *domain.SupportTicket) error {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	_, err := s.tickets.ReplaceOne(ctx, bson.M{"_id": t.ID}, toTicketDoc(t), options.Replace().SetUpsert(true))
+	return err
+}
+
+func (s *MongoStore) findTickets(filter bson.M) ([]*domain.SupportTicket, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
+	defer cancel()
+	cur, err := s.tickets.Find(ctx, filter)
+	if err != nil {
+		return nil, err
+	}
+	defer cur.Close(ctx)
+	out := []*domain.SupportTicket{}
+	for cur.Next(ctx) {
+		var d ticketDoc
 		if err := cur.Decode(&d); err != nil {
 			return nil, err
 		}

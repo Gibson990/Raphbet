@@ -9,6 +9,7 @@ import { PromoBanner } from '../components/PromoBanner';
 import { SoccerBallIcon, TicketIcon } from '../components/icons';
 import { MatchListSkeleton, RowsSkeleton } from '../components/common/Skeleton';
 import { fetchLeagues, fetchMatches, fetchStandings } from '../services/api';
+import { winBoostPercent } from '../services/accaBoost';
 import type { League, Match, Standing, BetSelection, Outcome } from '../types';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -109,7 +110,7 @@ const HomeScreen: React.FC = () => {
     setMarketsMatch(null);
   };
 
-  const handlePlaceBet = async () => {
+  const handlePlaceBet = async (isMulti?: boolean, multiWager?: number) => {
     if (!isLoggedIn) {
       addToast('Log in to place your bet.', 'info');
       navigate('/login');
@@ -122,14 +123,19 @@ const HomeScreen: React.FC = () => {
     }
     // Capture totals before placeBet clears the slip, for the success screen.
     const count = betSlip.length;
-    const stake = betSlip.reduce((s, b) => s + b.wager, 0);
-    const payout = betSlip.reduce((s, b) => s + b.wager * b.selection.odds, 0);
+    const stake = isMulti ? (multiWager || 0) : betSlip.reduce((s, b) => s + b.wager, 0);
+    const combinedMultiplier = betSlip.reduce((prod, b) => prod * b.selection.odds, 1);
+    const boostPercent = winBoostPercent(count);
+    const payout = isMulti
+      ? (multiWager || 0) * combinedMultiplier * (1 + boostPercent / 100)
+      : betSlip.reduce((s, b) => s + b.wager * b.selection.odds, 0);
+
     if (stake > wallet.balance) {
       addToast('Insufficient balance — top up to continue.', 'error');
       navigate('/wallet');
       return;
     }
-    const result = await placeBet();
+    const result = await placeBet(isMulti, multiWager);
     if (result.success) {
       setIsBetSlipOpen(false);
       setPlaced({ count, stake, payout });

@@ -31,7 +31,26 @@ import (
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/odds"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/payments"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/settlement"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/support"
 )
+
+// worldCupLeagueID is the league the betting market board and settlement worker
+// operate on (FIFA World Cup). Kept in one place so the odds resolver and the
+// results provider stay in sync.
+const worldCupLeagueID = "1"
+
+// oddsResolver adapts the football use case to betting.OddsResolver, binding the
+// lookup to the World Cup league so the betting service stays league-agnostic.
+type oddsResolver struct {
+	fs     *footballuc.Service
+	league string
+}
+
+func (r oddsResolver) OddsForSelection(matchID, marketCode string) (float64, bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return r.fs.OddsForSelection(ctx, r.league, matchID, marketCode)
+}
 
 func main() {
 	cfg := config.Load()
@@ -62,6 +81,7 @@ func main() {
 	var kycStore kyc.Store
 	var processed payments.Idempotency
 	var configRepo domain.ConfigRepository
+	var tickets domain.SupportRepository
 
 	var mongoStore *store.MongoStore
 	var memStore *store.MemoryStore
@@ -75,11 +95,13 @@ func main() {
 		defer mongoStore.Close(context.Background())
 		wallets, bets, withdrawals, kycStore, processed = mongoStore, mongoStore, mongoStore, mongoStore, mongoStore
 		configRepo = mongoStore
+		tickets = mongoStore
 		log.Printf("store: MongoDB (db %q)", cfg.MongoDB)
 	} else {
 		memStore = store.NewMemoryStore()
 		wallets, bets, withdrawals, kycStore, processed = memStore, memStore, memStore, memStore, memStore
 		configRepo = memStore
+		tickets = memStore
 		log.Printf("store: in-memory (set MONGO_URI to persist)")
 	}
 
@@ -124,6 +146,10 @@ func main() {
 		MinWithdrawal: minWithdrawal,
 		MaxWithdrawal: maxWithdrawal,
 	})
+	// Authoritative odds: reprice every placed selection server-side so a forged
+	// "odds" field in a bet request can never inflate the payout. The World Cup is
+	// league "1"; the resolver looks selections up on the live market board.
+	bettingService.SetOddsResolver(oddsResolver{fs: footballService, league: worldCupLeagueID})
 
 	// Front-end base URL (for provider success/return redirects).
 	frontendBase := "http://localhost:3000"
@@ -153,11 +179,14 @@ func main() {
 	// Admin dashboard read models (computed from live data).
 	adminService := admin.New(wallets, bets, kycStore)
 
+	// Customer support tickets (registered users <-> agents).
+	supportService := support.New(tickets)
+
 	// Settlement worker: settle pending bets from real World Cup results.
-	results := settlement.NewFootballResults(footballService, "1")
+	results := settlement.NewFootballResults(footballService, worldCupLeagueID)
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
-	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, oddsEngine, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret, configRepo)
+	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, supportService, oddsEngine, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret, configRepo)
 	if cfg.FirebaseProjectID != "" {
 		handlers.SetAuth(authinfra.NewFirebaseVerifier(cfg.FirebaseProjectID), cfg.AdminEmails)
 		log.Printf("auth: Firebase token verification (project %q, %d admin email(s))", cfg.FirebaseProjectID, len(cfg.AdminEmails))

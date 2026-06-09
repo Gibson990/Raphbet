@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"math"
 	"sync"
 	"time"
 
@@ -17,7 +18,23 @@ var (
 	ErrInvalidAmount = errors.New("amount must be positive")
 	ErrInsufficient  = errors.New("insufficient balance")
 	ErrEmptyBet      = errors.New("no selections provided")
+	ErrBadSelection  = errors.New("selection is not available for betting")
+	ErrDuplicateLeg  = errors.New("a match can only appear once on an accumulator")
+	ErrTooManyLegs   = errors.New("too many selections on the accumulator")
 )
+
+// maxAccaLegs caps the number of legs on an accumulator. Bounds combinatorial
+// payout risk and matches the practical limits used by mainstream bookmakers.
+const maxAccaLegs = 20
+
+// OddsResolver returns the canonical, server-side price for a market outcome on
+// a match. Implemented by the football use case; nil in tests (which then trust
+// the supplied odds). When set, the placement path always overwrites the
+// client-supplied odds with the resolved price — the client can never dictate a
+// payout multiplier.
+type OddsResolver interface {
+	OddsForSelection(matchID, marketCode string) (float64, bool)
+}
 
 // Limits are the configurable risk limits (USD cents).
 type Limits struct {
@@ -32,7 +49,26 @@ type Service struct {
 	initialBalance domain.Money
 	limits         Limits
 	limitsMu       sync.RWMutex
-	locks          sync.Map // deviceID -> *sync.Mutex, serialises wallet mutations
+	locks          sync.Map     // deviceID -> *sync.Mutex, serialises wallet mutations
+	odds           OddsResolver // nil in tests; set in production to validate prices
+}
+
+// SetOddsResolver wires the canonical odds source. Once set, every placed
+// selection is repriced server-side, so forged client odds are ignored.
+func (s *Service) SetOddsResolver(r OddsResolver) { s.odds = r }
+
+// resolveSelection reprices a selection from the authoritative odds source. When
+// no resolver is configured (tests) the supplied odds are trusted unchanged.
+func (s *Service) resolveSelection(sel domain.BetSelection) (domain.BetSelection, error) {
+	if s.odds == nil {
+		return sel, nil
+	}
+	price, ok := s.odds.OddsForSelection(sel.MatchID, sel.Market)
+	if !ok {
+		return sel, ErrBadSelection
+	}
+	sel.Odds = price
+	return sel, nil
 }
 
 // New builds a betting service. initialBalance seeds a brand-new wallet.
@@ -218,14 +254,20 @@ func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *
 	}
 	var total domain.Money
 	lim := s.Limits()
-	for _, it := range items {
-		if it.Wager <= 0 {
+	for i := range items {
+		if items[i].Wager <= 0 {
 			return nil, nil, ErrInvalidAmount
 		}
-		if it.Wager < lim.MinBet || it.Wager > lim.MaxBet {
+		if items[i].Wager < lim.MinBet || items[i].Wager > lim.MaxBet {
 			return nil, nil, ErrStakeRange
 		}
-		total += it.Wager
+		// Reprice from the authoritative odds engine — never trust client odds.
+		sel, err := s.resolveSelection(items[i].Selection)
+		if err != nil {
+			return nil, nil, err
+		}
+		items[i].Selection = sel
+		total += items[i].Wager
 	}
 	w, err := s.Wallet(deviceID)
 	if err != nil {
@@ -262,6 +304,116 @@ func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *
 	}
 	return placed, w, nil
 }
+
+// accaBoostLadder is the winnings boost applied to a winning accumulator, keyed
+// by leg count. It mirrors the mainstream bet365 ladder (2.5% at 2 legs rising
+// to a 100% cap at 20 legs). The boost is a marketing top-up on already
+// margin-loaded legs; going beyond ~100% turns the product loss-making, which is
+// why every major book caps here. Index 0/1 are unused (need 2+ legs).
+var accaBoostLadder = [...]float64{
+	0.00, 0.00, 0.025, 0.05, 0.10, 0.15, 0.20, 0.25, 0.30, 0.35, 0.40,
+	0.45, 0.50, 0.55, 0.60, 0.65, 0.70, 0.75, 0.80, 0.90, 1.00,
+}
+
+// CalculateWinBoost returns the fractional win boost for a given number of legs
+// (e.g. 0.10 == +10%). Two legs is the minimum for a boost; the ladder is capped
+// at maxAccaLegs.
+func CalculateWinBoost(legs int) float64 {
+	if legs < 2 {
+		return 0.0
+	}
+	if legs >= len(accaBoostLadder) {
+		return accaBoostLadder[len(accaBoostLadder)-1]
+	}
+	return accaBoostLadder[legs]
+}
+
+// PlaceMultiBet validates funds, debits the wallet and records a pending multi-bet.
+func (s *Service) PlaceMultiBet(deviceID string, selections []domain.BetSelection, wager domain.Money) (*domain.Bet, *domain.Wallet, error) {
+	defer s.lock(deviceID)()
+	if len(selections) == 0 {
+		return nil, nil, ErrEmptyBet
+	}
+	if len(selections) > maxAccaLegs {
+		return nil, nil, ErrTooManyLegs
+	}
+	if wager <= 0 {
+		return nil, nil, ErrInvalidAmount
+	}
+	lim := s.Limits()
+	if wager < lim.MinBet || wager > lim.MaxBet {
+		return nil, nil, ErrStakeRange
+	}
+
+	// Reprice every leg from the authoritative odds engine and reject duplicate
+	// matches (legs in one acca must be independent, and a forged odds field must
+	// never reach the payout math).
+	seen := make(map[string]bool, len(selections))
+	priced := make([]domain.BetSelection, len(selections))
+	for i := range selections {
+		if seen[selections[i].MatchID] {
+			return nil, nil, ErrDuplicateLeg
+		}
+		seen[selections[i].MatchID] = true
+		sel, err := s.resolveSelection(selections[i])
+		if err != nil {
+			return nil, nil, err
+		}
+		priced[i] = sel
+	}
+	selections = priced
+
+	w, err := s.Wallet(deviceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	if w.Suspended {
+		return nil, nil, ErrSuspended
+	}
+	if wager > w.Balance {
+		return nil, nil, ErrInsufficient
+	}
+
+	// Calculate compounded multiplier
+	multiplier := 1.0
+	for _, sel := range selections {
+		multiplier *= sel.Odds
+	}
+	// Round multiplier to 2 decimal places
+	multiplier = math.Round(multiplier*100) / 100
+
+	winBoost := CalculateWinBoost(len(selections))
+
+	now := time.Now()
+	// Backwards compatibility selection: use the first selection
+	firstSel := selections[0]
+
+	b := &domain.Bet{
+		ID:         newID(),
+		DeviceID:   deviceID,
+		Selection:  firstSel,
+		Selections: selections,
+		Wager:      wager,
+		Status:     domain.BetPending,
+		PlacedDate: now,
+		IsMulti:    true,
+		Multiplier: multiplier,
+		WinBoost:   winBoost,
+	}
+
+	if err := s.bets.Add(b); err != nil {
+		return nil, nil, err
+	}
+
+	w.Balance -= wager
+	s.addTx(w, domain.TxWager, -wager, fmt.Sprintf("Accumulator bet placed (%d legs)", len(selections)))
+	if err := s.wallets.Save(w); err != nil {
+		return nil, nil, err
+	}
+
+	return b, w, nil
+}
+
 
 // Limits returns the configured risk limits (for the public config endpoint).
 func (s *Service) Limits() Limits {

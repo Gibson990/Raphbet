@@ -1,6 +1,6 @@
 import React from 'react';
 import { NavLink } from 'react-router-dom';
-import { HomeIcon, ReceiptIcon, CreditCardIcon, UserCircleIcon, SunIcon, MoonIcon } from '../icons';
+import { HomeIcon, ReceiptIcon, CreditCardIcon, UserCircleIcon, ChatBubbleIcon, SunIcon, MoonIcon } from '../icons';
 import { BrandLogo } from './BrandLogo';
 
 interface SidebarProps {
@@ -14,6 +14,7 @@ const items = [
   { to: '/bets', label: 'My Bets', icon: ReceiptIcon, end: false },
   { to: '/wallet', label: 'Wallet', icon: CreditCardIcon, end: false },
   { to: '/profile', label: 'Profile', icon: UserCircleIcon, end: false },
+  { to: '/support', label: 'Support', icon: ChatBubbleIcon, end: false },
 ];
 
 /** Desktop-only left navigation rail (hidden on mobile, where BottomNav is used). */
