@@ -11,6 +11,11 @@ interface LoginScreenProps {
   addToast: (message: string, type: ToastMessage['type']) => void;
 }
 
+// Phone/SMS login needs Firebase Blaze (paid SMS) + an SMS region allow-list +
+// anti-fraud controls. Until that's set up, Google is the only login shown.
+// Flip this to true to re-enable the phone OTP form (the code stays wired).
+const PHONE_LOGIN_ENABLED = false;
+
 const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
   const { loginWithGoogle } = useAuth();
   const [phone, setPhone] = useState('');
@@ -111,35 +116,40 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ addToast }) => {
           <p className="text-gray-400 text-sm mb-6 text-center lg:text-left">Sign in to start betting</p>
 
           <div className="bg-white dark:bg-neutral-dark-gray rounded-2xl border border-gray-200 dark:border-neutral-border p-6 space-y-5">
-            {!otpSent ? (
-              <form onSubmit={handlePhoneSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Mobile number</label>
-                  <input id="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="0712 345 678" className={inputClass} />
-                </div>
-                <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:bg-gray-400">{busy ? 'Sending…' : 'Send code'}</button>
-              </form>
-            ) : (
-              <form onSubmit={handleOtpSubmit} className="space-y-4">
-                <div>
-                  <label htmlFor="otp" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Enter the code we sent</label>
-                  <input id="otp" type="text" inputMode="numeric" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" className={inputClass} />
-                </div>
-                <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:bg-gray-400">{busy ? 'Verifying…' : 'Verify & Login'}</button>
-                <button type="button" onClick={() => setOtpSent(false)} className="w-full text-center text-sm text-primary hover:underline">Change number</button>
-              </form>
-            )}
-
-            <div className="relative flex items-center">
-              <div className="flex-grow border-t border-gray-200 dark:border-neutral-border" />
-              <span className="mx-3 text-gray-400 text-xs">OR</span>
-              <div className="flex-grow border-t border-gray-200 dark:border-neutral-border" />
-            </div>
-
-            <button onClick={handleGoogleLogin} disabled={busy} className="w-full flex items-center justify-center gap-2 py-2.5 border border-gray-300 dark:border-neutral-border rounded-xl text-sm font-semibold text-gray-700 dark:text-gray-200 hover:bg-gray-50 dark:hover:bg-neutral-dark-card transition-colors disabled:opacity-60">
+            {/* Primary login — Google (free, no SMS). */}
+            <button onClick={handleGoogleLogin} disabled={busy} className="w-full flex items-center justify-center gap-2 py-3 border border-gray-300 dark:border-neutral-border rounded-xl text-sm font-bold text-gray-700 dark:text-gray-200 bg-white dark:bg-neutral-dark-card hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors disabled:opacity-60 shadow-sm">
               <GoogleIcon className="w-5 h-5" /> Continue with Google
             </button>
-            <div id="recaptcha-container" />
+
+            {PHONE_LOGIN_ENABLED && (
+              <>
+                <div className="relative flex items-center">
+                  <div className="flex-grow border-t border-gray-200 dark:border-neutral-border" />
+                  <span className="mx-3 text-gray-400 text-xs">OR</span>
+                  <div className="flex-grow border-t border-gray-200 dark:border-neutral-border" />
+                </div>
+
+                {!otpSent ? (
+                  <form onSubmit={handlePhoneSubmit} className="space-y-4">
+                    <div>
+                      <label htmlFor="phone" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Mobile number</label>
+                      <input id="phone" type="tel" value={phone} onChange={e => setPhone(e.target.value)} placeholder="0712 345 678" className={inputClass} />
+                    </div>
+                    <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:bg-gray-400">{busy ? 'Sending…' : 'Send code'}</button>
+                  </form>
+                ) : (
+                  <form onSubmit={handleOtpSubmit} className="space-y-4">
+                    <div>
+                      <label htmlFor="otp" className="block text-sm font-medium text-gray-700 dark:text-gray-300">Enter the code we sent</label>
+                      <input id="otp" type="text" inputMode="numeric" value={otp} onChange={e => setOtp(e.target.value)} placeholder="123456" className={inputClass} />
+                    </div>
+                    <button type="submit" disabled={busy} className="w-full py-2.5 rounded-xl text-sm font-bold text-white bg-primary hover:bg-primary-dark transition-colors disabled:bg-gray-400">{busy ? 'Verifying…' : 'Verify & Login'}</button>
+                    <button type="button" onClick={() => setOtpSent(false)} className="w-full text-center text-sm text-primary hover:underline">Change number</button>
+                  </form>
+                )}
+                <div id="recaptcha-container" />
+              </>
+            )}
 
             <label className="flex items-start gap-2.5 text-xs text-gray-500 dark:text-gray-400 cursor-pointer">
               <input
