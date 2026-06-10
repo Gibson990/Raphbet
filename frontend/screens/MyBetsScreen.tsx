@@ -3,6 +3,7 @@ import type { PlacedBet } from '../types';
 import { TicketIcon } from '../components/icons';
 import { useAppOutlet } from '../hooks/useAppOutlet';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { downloadBetSlip } from '../services/receipt';
 
 interface BetStatusBadgeProps {
   status: PlacedBet['status'];
@@ -22,8 +23,12 @@ const BetStatusBadge: React.FC<BetStatusBadgeProps> = ({ status }) => {
   }
 };
 
-const BetHistoryCard: React.FC<{ bet: PlacedBet }> = ({ bet }) => {
+const BetHistoryCard: React.FC<{ bet: PlacedBet; onDownloadFail: () => void }> = ({ bet, onDownloadFail }) => {
   const { format } = useCurrency();
+
+  const handleDownload = () => {
+    if (!downloadBetSlip(bet, format)) onDownloadFail();
+  };
 
   // An accumulator carries multiple legs and a combined multiplier + win boost;
   // a single bet pays stake × odds. Compute the potential payout the same way
@@ -86,13 +91,22 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet }> = ({ bet }) => {
           </span>
         </div>
       </div>
+      <button
+        onClick={handleDownload}
+        className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-primary border border-gray-200 dark:border-neutral-border rounded-lg py-2 transition-colors"
+      >
+        <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+          <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+        </svg>
+        Download receipt
+      </button>
     </div>
   );
 };
 
 
 const MyBetsScreen: React.FC = () => {
-  const { wallet } = useAppOutlet();
+  const { wallet, addToast } = useAppOutlet();
   const bets = wallet.placedBets;
   const [activeTab, setActiveTab] = useState<'active' | 'settled'>('active');
   
@@ -131,7 +145,13 @@ const MyBetsScreen: React.FC = () => {
          </div>
       ) : (
         <div className="space-y-4">
-            {filteredBets.map((bet) => <BetHistoryCard key={bet.id} bet={bet} />)}
+            {filteredBets.map((bet) => (
+              <BetHistoryCard
+                key={bet.id}
+                bet={bet}
+                onDownloadFail={() => addToast('Could not generate the receipt. Please try again.', 'error')}
+              />
+            ))}
         </div>
       )}
     </div>
