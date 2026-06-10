@@ -25,14 +25,14 @@ export const MarketsModal: React.FC<MarketsModalProps> = ({ match, selectedCode,
                   <button
                     key={o.code}
                     onClick={() => onSelect(match, o)}
-                    className={`flex items-center justify-between gap-2 px-3 py-2.5 rounded-lg border text-sm transition-all ${
+                    className={`flex items-center justify-between gap-2 px-3.5 py-2.5 rounded-xl border text-sm transition-all active:scale-[0.98] ${
                       active
-                        ? 'bg-primary border-primary text-white'
-                        : 'bg-gray-50 dark:bg-neutral-dark border-gray-200 dark:border-neutral-border hover:border-primary'
+                        ? 'bg-primary border-primary text-white shadow-sm shadow-primary/30'
+                        : 'bg-gray-50 dark:bg-neutral-dark border-gray-200 dark:border-neutral-border hover:border-primary hover:bg-white dark:hover:bg-neutral-dark-card'
                     }`}
                   >
-                    <span className="truncate text-left">{o.label}</span>
-                    <span className="font-bold tabular-nums shrink-0">{o.odds.toFixed(2)}</span>
+                    <span className="truncate text-left font-medium">{o.label}</span>
+                    <span className={`font-extrabold tabular-nums shrink-0 ${active ? 'text-white' : 'text-primary'}`}>{o.odds.toFixed(2)}</span>
                   </button>
                 );
               })}

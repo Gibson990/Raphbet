@@ -16,7 +16,7 @@ export const MatchList: React.FC<MatchListProps> = ({ matches, onSelectOdd, onOp
       <div className="flex flex-col items-center justify-center text-center py-16 px-4">
         <SoccerBallIcon className="h-12 w-12 text-gray-300 dark:text-gray-600 mb-3" />
         <p className="font-semibold text-gray-600 dark:text-gray-300">No matches right now</p>
-        <p className="text-sm text-gray-400 mt-1">Check back soon for upcoming World Cup fixtures.</p>
+        <p className="text-sm text-gray-400 mt-1">Try another league, or check back soon for upcoming fixtures.</p>
       </div>
     );
   }
