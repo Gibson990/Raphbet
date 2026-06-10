@@ -5,10 +5,20 @@ package admin
 import (
 	"fmt"
 	"sort"
+	"strings"
 	"time"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 )
+
+// isRegistered reports whether a wallet key belongs to a signed-in user rather
+// than an anonymous guest browser. Signed-in users are keyed by their Firebase
+// UID (alphanumeric, no hyphens); guests are keyed by a UUID device id (which
+// always contains hyphens). Registered accounts are shown in the admin even
+// before they deposit or bet; empty guest wallets are not.
+func isRegistered(walletID string) bool {
+	return walletID != "" && !strings.Contains(walletID, "-")
+}
 
 // KycChecker reports whether a device/identity is KYC-verified.
 type KycChecker interface {
@@ -104,7 +114,7 @@ func (s *Service) Stats() (Stats, error) {
 	}
 
 	for _, w := range wallets {
-		if len(w.Transactions) > 0 || betDevices[w.DeviceID] {
+		if isRegistered(w.DeviceID) || len(w.Transactions) > 0 || betDevices[w.DeviceID] {
 			st.Users++
 		}
 		st.TotalBalance += w.Balance
@@ -182,9 +192,10 @@ func (s *Service) Users() ([]UserRow, error) {
 
 	rows := make([]UserRow, 0, len(wallets))
 	for _, w := range wallets {
-		// Skip auto-created guest/seed wallets with no activity so the table shows
-		// real players, matching the headline "Players" count.
-		if len(w.Transactions) == 0 && countBy[w.DeviceID] == 0 {
+		// Show registered accounts (signed-in users) always; skip only anonymous
+		// guest wallets that have no activity, so the table reflects real players
+		// without the auto-created guest clutter.
+		if !isRegistered(w.DeviceID) && len(w.Transactions) == 0 && countBy[w.DeviceID] == 0 {
 			continue
 		}
 		verified, _ := s.kyc.IsVerified(w.DeviceID)
