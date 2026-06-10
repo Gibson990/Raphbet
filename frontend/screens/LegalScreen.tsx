@@ -28,7 +28,7 @@ const ResponsibleContent: React.FC = () => (
     <Section title="Stay in control">Set yourself limits on time and budget. Take regular breaks and never bet while stressed, upset, or under the influence.</Section>
     <Section title="18+ only">You must be at least 18 years old to use Raphbet. Underage gambling is illegal and strictly prohibited.</Section>
     <Section title="Warning signs">Chasing losses, betting more than planned, or letting betting affect your work or relationships are signs to step back.</Section>
-    <Section title="Get help">If gambling stops being fun, seek support. In Tanzania, contact the Gaming Board of Tanzania (GBT) for guidance and a list of support resources.</Section>
+    <Section title="Get help">If gambling stops being fun, seek support. Reach out to a recognised problem-gambling support organisation in your country, or contact our support team — we can help you set deposit limits or self-exclude.</Section>
   </div>
 );
 
