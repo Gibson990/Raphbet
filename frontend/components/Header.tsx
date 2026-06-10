@@ -11,19 +11,30 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ balance, onDeposit }) => {
-  const { isLoggedIn } = useAuth();
+  const { isLoggedIn, isAdmin } = useAuth();
   const { format } = useCurrency();
   const navigate = useNavigate();
 
   return (
     <header className="bg-white/90 dark:bg-neutral-dark-gray/90 backdrop-blur border-b border-gray-200 dark:border-neutral-border sticky top-0 z-30">
       <div className="px-4 sm:px-6 h-16 flex justify-between items-center gap-3">
-        <div className="lg:hidden">
+        {/* Logo / brand — tap to go home */}
+        <button onClick={() => navigate('/')} className="lg:hidden -ml-1 p-1 rounded-lg active:scale-95 transition-transform" aria-label="Home">
           <BrandLogo size="sm" />
-        </div>
-        <div className="hidden lg:block text-sm font-semibold text-gray-400">FIFA World Cup 2026</div>
+        </button>
+        <button onClick={() => navigate('/')} className="hidden lg:block text-sm font-bold text-gray-500 hover:text-primary transition-colors" aria-label="Home">
+          Raphbet
+        </button>
 
         <div className="flex items-center gap-1.5 sm:gap-3 min-w-0">
+          {isAdmin && (
+            <button
+              onClick={() => navigate('/admin')}
+              className="text-xs sm:text-sm font-bold px-3 py-1.5 sm:py-2 rounded-lg border border-primary/30 text-primary hover:bg-primary hover:text-white transition-colors whitespace-nowrap"
+            >
+              ⚙ Admin
+            </button>
+          )}
           <CurrencySelect />
           {isLoggedIn ? (
             <>

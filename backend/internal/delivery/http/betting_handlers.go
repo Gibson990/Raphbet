@@ -14,6 +14,7 @@ import (
 // BettingService is the use case port for wallet, bets and withdrawals.
 type BettingService interface {
 	Wallet(deviceID string) (*domain.Wallet, error)
+	RecordEmail(deviceID, email string) error
 	PlaceBet(deviceID string, items []betting.PlaceItem) ([]*domain.Bet, *domain.Wallet, error)
 	PlaceMultiBet(deviceID string, selections []domain.BetSelection, wager domain.Money) (*domain.Bet, *domain.Wallet, error)
 	Bets(deviceID string) ([]*domain.Bet, error)

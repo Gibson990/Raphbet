@@ -35,6 +35,7 @@ export interface AdminStats {
 
 export interface AdminUser {
   deviceId: string;
+  email?: string;
   balance: number;
   verified: boolean;
   totalStaked: number;

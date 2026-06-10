@@ -715,7 +715,7 @@ const AdminScreen: React.FC = () => {
 
   const filteredUsers = users.filter(u => {
     const q = searchUser.toLowerCase();
-    const match = u.deviceId.toLowerCase().includes(q);
+    const match = u.deviceId.toLowerCase().includes(q) || (u.email ?? '').toLowerCase().includes(q);
     if (filterUserStatus === 'suspended') return match && u.suspended;
     if (filterUserStatus === 'active') return match && !u.suspended;
     return match;
@@ -1007,7 +1007,7 @@ const AdminScreen: React.FC = () => {
               <table className="w-full text-xs text-left">
                 <thead className="text-[10px] uppercase font-bold text-gray-400 border-b border-gray-200 dark:border-neutral-border bg-gray-50/50 dark:bg-neutral-dark/30">
                   <tr>
-                    <th className="px-5 py-3.5">Device / Player ID</th>
+                    <th className="px-5 py-3.5">Player (email / id)</th>
                     <th className="px-5 py-3.5 text-right">Balance</th>
                     <th className="px-5 py-3.5 text-center">KYC</th>
                     <th className="px-5 py-3.5 text-center">Status</th>
@@ -1019,8 +1019,17 @@ const AdminScreen: React.FC = () => {
                 <tbody className="divide-y divide-gray-100 dark:divide-neutral-border">
                   {filteredUsers.map(u => (
                     <tr key={u.deviceId} className="hover:bg-gray-50/50 dark:hover:bg-neutral-dark/10 transition-colors">
-                      <td className="px-5 py-4 font-mono text-[11px]">
-                        <span className="block truncate max-w-[180px]" title={u.deviceId}>{u.deviceId}</span>
+                      <td className="px-5 py-4">
+                        {u.email ? (
+                          <>
+                            <span className="block font-semibold text-[12px] truncate max-w-[200px]" title={u.email}>{u.email}</span>
+                            <span className="block font-mono text-[10px] text-gray-400 truncate max-w-[200px]" title={u.deviceId}>{u.deviceId}</span>
+                          </>
+                        ) : (
+                          <span className="block font-mono text-[11px] truncate max-w-[200px]" title={u.deviceId}>
+                            {u.deviceId} <span className="text-gray-400 font-sans">· guest</span>
+                          </span>
+                        )}
                       </td>
                       <td className="px-5 py-4 text-right font-bold tabular-nums">{formatCurrency(u.balance)}</td>
                       <td className="px-5 py-4 text-center">

@@ -1,5 +1,5 @@
 import React from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, Link } from 'react-router-dom';
 import { HomeIcon, ReceiptIcon, CreditCardIcon, UserCircleIcon, ChatBubbleIcon, SunIcon, MoonIcon } from '../icons';
 import { BrandLogo } from './BrandLogo';
 
@@ -21,9 +21,9 @@ const items = [
 export const Sidebar: React.FC<SidebarProps> = ({ betSlipCount, isDarkMode, toggleDarkMode }) => {
   return (
     <aside className="hidden lg:flex flex-col w-60 shrink-0 h-screen sticky top-0 border-r border-gray-200 dark:border-neutral-border bg-white dark:bg-neutral-dark-gray">
-      <div className="px-6 py-5">
+      <Link to="/" className="block px-6 py-5 active:scale-[0.98] transition-transform" aria-label="Home">
         <BrandLogo />
-      </div>
+      </Link>
 
       <nav className="flex-1 px-3 space-y-1">
         {items.map(({ to, label, icon: Icon, end }) => (

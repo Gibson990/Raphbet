@@ -83,10 +83,14 @@ func bearer(r *http.Request) string {
 func (h *Handlers) identity(w http.ResponseWriter, r *http.Request) (string, bool) {
 	if h.auth != nil {
 		if tok := bearer(r); tok != "" {
-			uid, _, err := h.auth.Verify(r.Context(), tok)
+			uid, email, err := h.auth.Verify(r.Context(), tok)
 			if err != nil {
 				writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "invalid or expired session"})
 				return "", false
+			}
+			// Remember the signed-in user's email for the admin view (best-effort).
+			if email != "" {
+				_ = h.betting.RecordEmail(uid, email)
 			}
 			return uid, true
 		}

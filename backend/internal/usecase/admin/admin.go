@@ -54,6 +54,7 @@ type Stats struct {
 // UserRow is one row of the users table.
 type UserRow struct {
 	DeviceID    string       `json:"deviceId"`
+	Email       string       `json:"email,omitempty"`
 	Balance     domain.Money `json:"balance"`
 	Verified    bool         `json:"verified"`
 	TotalStaked domain.Money `json:"totalStaked"`
@@ -201,6 +202,7 @@ func (s *Service) Users() ([]UserRow, error) {
 		verified, _ := s.kyc.IsVerified(w.DeviceID)
 		rows = append(rows, UserRow{
 			DeviceID:    w.DeviceID,
+			Email:       w.Email,
 			Balance:     w.Balance,
 			Verified:    verified,
 			TotalStaked: stakedBy[w.DeviceID],

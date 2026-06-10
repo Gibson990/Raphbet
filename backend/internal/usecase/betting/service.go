@@ -186,6 +186,25 @@ func (s *Service) RejectWithdrawal(id, reason string) (*domain.Withdrawal, error
 	return wd, s.withdrawals.UpdateWithdrawal(wd)
 }
 
+// RecordEmail stores a signed-in user's email on their wallet (for the admin
+// view). Best-effort and idempotent: it only writes when the email is new or
+// changed, so it's cheap to call on every authenticated request.
+func (s *Service) RecordEmail(deviceID, email string) error {
+	if email == "" {
+		return nil
+	}
+	defer s.lock(deviceID)()
+	w, err := s.Wallet(deviceID)
+	if err != nil {
+		return err
+	}
+	if w.Email == email {
+		return nil
+	}
+	w.Email = email
+	return s.wallets.Save(w)
+}
+
 // Wallet returns the device's wallet, creating it (seeded) on first use.
 func (s *Service) Wallet(deviceID string) (*domain.Wallet, error) {
 	w, err := s.wallets.Get(deviceID)

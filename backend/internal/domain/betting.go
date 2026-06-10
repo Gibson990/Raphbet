@@ -30,6 +30,7 @@ type Transaction struct {
 // real auth (Phase 5) replaces it with a user id.
 type Wallet struct {
 	DeviceID     string        `json:"-"`
+	Email        string        `json:"-"` // signed-in user's email, for the admin view
 	Balance      Money         `json:"balance"`
 	Transactions []Transaction `json:"transactions"`
 	Suspended    bool          `json:"suspended"`
