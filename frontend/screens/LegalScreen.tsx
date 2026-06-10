@@ -54,7 +54,7 @@ const LegalScreen: React.FC<{ doc: LegalDoc }> = ({ doc }) => {
         <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-5 sm:p-7">
           {body}
         </div>
-        <p className="text-xs text-gray-400 mt-6">Raphbet operates with virtual credits for entertainment. Play responsibly. 18+.</p>
+        <p className="text-xs text-gray-400 mt-6">Raphbet is a real-money betting platform funded by cryptocurrency. Bet responsibly. 18+.</p>
       </main>
     </div>
   );

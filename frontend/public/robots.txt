@@ -1,0 +1,12 @@
+# Raphbet robots.txt — allow search engines to index public pages.
+User-agent: *
+Allow: /
+# Keep account/admin areas out of the index.
+Disallow: /admin
+Disallow: /wallet
+Disallow: /profile
+Disallow: /kyc
+Disallow: /support
+
+# Update the host below to your live domain after deploy.
+Sitemap: https://raphbet.com/sitemap.xml
