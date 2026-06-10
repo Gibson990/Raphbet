@@ -54,6 +54,19 @@ you send the crypto → click Approve*. Nothing more to build for payments.
 - [ ] Until this is on a public URL, deposits will not auto-credit — this is the
       only payment piece that requires hosting.
 
+### Turn on real KYC (Didit)
+- [ ] **Top up Didit credits** — the backend already runs the real Didit
+      verifier (no code change or redeploy needed). Adding credits flips it from
+      the "not enough credits" error to live verification automatically.
+- [ ] Real KYC is a genuine ID check (the player uploads a document/selfie on
+      Didit's hosted page), not the instant sandbox approve.
+- [ ] The decision comes back by **polling** (`/api/kyc/check`, works anywhere) —
+      enough to launch. For reliability once hosted, also set the **Didit webhook
+      URL** to `https://<your-railway-api>/api/kyc/webhook` in the Didit
+      dashboard and put the matching secret in `DIDIT_WEBHOOK_SECRET`.
+- [ ] Don't confuse the two balances: **Didit balance** pays for KYC checks;
+      your **crypto float** pays out winners' withdrawals. Both must be funded.
+
 ### Security & config
 - [ ] **Change `ADMIN_KEY`** from the default `raphbet-admin` to a long random value.
 - [ ] Set `ADMIN_EMAILS` so admin is gated by your Firebase login, not just the key.
