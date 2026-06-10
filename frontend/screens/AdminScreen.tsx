@@ -64,8 +64,8 @@ const StatCard: React.FC<{
 
     <div className="relative flex items-start justify-between gap-3">
       <div className="flex-1 min-w-0">
-        <p className="text-[11px] font-bold text-gray-400 dark:text-gray-500 uppercase tracking-wider leading-tight">{label}</p>
-        <p className={`text-[22px] font-black mt-2 tabular-nums tracking-tight leading-none ${accent ?? 'text-neutral-dark dark:text-white'}`}>{value}</p>
+        <p className="text-[11px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wide leading-tight">{label}</p>
+        <p className={`text-[20px] font-bold mt-2 tabular-nums tracking-tight leading-none ${accent ?? 'text-neutral-dark dark:text-white'}`}>{value}</p>
         {sub && (
           <div className="flex items-center gap-1.5 mt-2.5">
             {trend === 'up' && <ArrowUp className="w-3 h-3 text-success" />}
@@ -75,8 +75,10 @@ const StatCard: React.FC<{
         )}
       </div>
       {icon && (
-        <div className={`p-2.5 rounded-xl ${iconBg} ${iconColor} shrink-0 transition-all duration-300 group-hover:scale-110 group-hover:shadow-lg`}>
-          {icon}
+        <div className={`p-2.5 rounded-xl ${iconBg} ${iconColor} shrink-0 transition-all duration-300 group-hover:scale-110`}>
+          {React.isValidElement(icon)
+            ? React.cloneElement(icon as React.ReactElement<{ strokeWidth?: number; className?: string }>, { strokeWidth: 1.75, className: 'w-5 h-5' })
+            : icon}
         </div>
       )}
     </div>
@@ -194,7 +196,8 @@ const RevenueChart: React.FC<{ daily: DailyStat[] }> = ({ daily }) => {
               <g key={i}>
                 <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="currentColor" className="text-gray-100 dark:text-neutral-border/25" strokeWidth="0.8" />
                 <text x={padL - 8} y={y + 3} textAnchor="end" className="fill-gray-400 dark:fill-gray-600 select-none" fontSize="9" fontWeight="600">
-                  {val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val >= 1 ? val.toFixed(0) : '0'}
+                  {/* Compact tick labels so the axis stays readable at any scale (k / m / b). */}
+                  {val >= 1e9 ? `${(val / 1e9).toFixed(1)}b` : val >= 1e6 ? `${(val / 1e6).toFixed(1)}m` : val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val >= 1 ? val.toFixed(0) : '0'}
                 </text>
               </g>
             );
@@ -253,15 +256,15 @@ const RevenueChart: React.FC<{ daily: DailyStat[] }> = ({ daily }) => {
           </div>
           <div>
             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Wagers</p>
-            <p className="text-sm font-black mt-1" style={{ color: '#FF6B35' }}>{formatVal(daily[hoveredIdx].wagers)}</p>
+            <p className="text-sm font-bold mt-1" style={{ color: '#FF6B35' }}>{formatVal(daily[hoveredIdx].wagers)}</p>
           </div>
           <div>
             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">Payouts</p>
-            <p className="text-sm font-black mt-1" style={{ color: '#8B5CF6' }}>{formatVal(daily[hoveredIdx].payouts)}</p>
+            <p className="text-sm font-bold mt-1" style={{ color: '#8B5CF6' }}>{formatVal(daily[hoveredIdx].payouts)}</p>
           </div>
           <div>
             <p className="text-[9px] font-bold text-gray-400 uppercase tracking-widest">GGR</p>
-            <p className="text-sm font-black mt-1" style={{ color: '#10B981' }}>{formatVal(daily[hoveredIdx].ggr)}</p>
+            <p className="text-sm font-bold mt-1" style={{ color: '#10B981' }}>{formatVal(daily[hoveredIdx].ggr)}</p>
           </div>
         </div>
       )}
@@ -754,7 +757,7 @@ const AdminScreen: React.FC = () => {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <BrandLogo size="sm" />
-            <span className="text-[10px] font-extrabold bg-primary/10 text-primary px-2.5 py-0.5 rounded-md tracking-wider uppercase">Admin Console</span>
+            <span className="text-[10px] font-semibold bg-primary/10 text-primary px-2.5 py-0.5 rounded-md tracking-wider uppercase">Admin Console</span>
           </div>
           <div className="flex items-center gap-4">
             {user?.email && (
@@ -788,23 +791,23 @@ const AdminScreen: React.FC = () => {
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`py-2.5 px-5 text-xs font-black uppercase tracking-wider rounded-xl transition-all duration-300 flex items-center gap-2 ${
+                className={`py-2.5 px-5 text-xs font-semibold tracking-tight rounded-xl transition-all duration-300 flex items-center gap-2 ${
                   isActive
-                    ? 'bg-primary text-white shadow-lg shadow-primary/20 scale-[1.02]'
+                    ? 'bg-primary text-white shadow-md shadow-primary/15'
                     : 'text-gray-400 hover:text-neutral-dark dark:hover:text-white hover:bg-gray-50 dark:hover:bg-neutral-dark/45'
                 }`}
               >
                 <span>{labelMap[t]}</span>
                 {t === 'withdrawals' && withdrawals.length > 0 ? (
-                  <span className={`ml-1 px-2 py-0.5 text-[9px] font-black rounded-full ${isActive ? 'bg-white text-primary' : 'bg-danger text-white animate-pulse'}`}>{withdrawals.length}</span>
+                  <span className={`ml-1 px-2 py-0.5 text-[9px] font-bold rounded-full ${isActive ? 'bg-white text-primary' : 'bg-danger text-white animate-pulse'}`}>{withdrawals.length}</span>
                 ) : ''}
                 {t === 'bets' && bets.filter(b => b.status === 'PENDING').length > 0 ? (
-                  <span className={`ml-1 px-2 py-0.5 text-[9px] font-black rounded-full ${isActive ? 'bg-white text-primary' : 'bg-amber-500 text-white'}`}>
+                  <span className={`ml-1 px-2 py-0.5 text-[9px] font-bold rounded-full ${isActive ? 'bg-white text-primary' : 'bg-amber-500 text-white'}`}>
                     {bets.filter(b => b.status === 'PENDING').length}
                   </span>
                 ) : ''}
                 {t === 'support' && tickets.filter(tk => tk.status === 'OPEN').length > 0 ? (
-                  <span className={`ml-1 px-2 py-0.5 text-[9px] font-black rounded-full ${isActive ? 'bg-white text-primary' : 'bg-danger text-white animate-pulse'}`}>
+                  <span className={`ml-1 px-2 py-0.5 text-[9px] font-bold rounded-full ${isActive ? 'bg-white text-primary' : 'bg-danger text-white animate-pulse'}`}>
                     {tickets.filter(tk => tk.status === 'OPEN').length}
                   </span>
                 ) : ''}
@@ -905,8 +908,8 @@ const AdminScreen: React.FC = () => {
                       <Percent className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-wider">House Margin (Vig)</p>
-                      <p className="text-xl font-black text-primary mt-0.5">{(config.houseMargin * 100).toFixed(1)}%</p>
+                      <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">House Margin (Vig)</p>
+                      <p className="text-xl font-bold text-primary mt-0.5">{(config.houseMargin * 100).toFixed(1)}%</p>
                     </div>
                   </div>
 
@@ -915,8 +918,8 @@ const AdminScreen: React.FC = () => {
                       <Wallet className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Min Bet</p>
-                      <p className="text-base font-black mt-0.5 dark:text-white">{formatCurrency(config.minBet)}</p>
+                      <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Min Bet</p>
+                      <p className="text-base font-bold mt-0.5 dark:text-white">{formatCurrency(config.minBet)}</p>
                     </div>
                   </div>
 
@@ -925,8 +928,8 @@ const AdminScreen: React.FC = () => {
                       <CircleDollarSign className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Max Bet</p>
-                      <p className="text-base font-black mt-0.5 dark:text-white">{formatCurrency(config.maxBet)}</p>
+                      <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Max Bet</p>
+                      <p className="text-base font-bold mt-0.5 dark:text-white">{formatCurrency(config.maxBet)}</p>
                     </div>
                   </div>
 
@@ -935,8 +938,8 @@ const AdminScreen: React.FC = () => {
                       <AlertTriangle className="w-5 h-5" />
                     </div>
                     <div>
-                      <p className="text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Pending Withdrawals</p>
-                      <p className="text-base font-black mt-0.5 text-danger">{withdrawals.length}</p>
+                      <p className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-wider">Pending Withdrawals</p>
+                      <p className="text-base font-bold mt-0.5 text-danger">{withdrawals.length}</p>
                     </div>
                   </div>
                 </div>
@@ -944,14 +947,14 @@ const AdminScreen: React.FC = () => {
                 <div className="flex items-center gap-3 shrink-0 ml-auto sm:ml-0">
                   <button
                     onClick={downloadOverallReport}
-                    className="text-xs font-black text-white bg-primary hover:bg-primary-dark active:scale-95 px-4 py-2.5 rounded-xl transition-all shadow-md shadow-primary/20 flex items-center gap-2 uppercase tracking-wider"
+                    className="text-xs font-bold text-white bg-primary hover:bg-primary-dark active:scale-95 px-4 py-2.5 rounded-xl transition-all shadow-md shadow-primary/20 flex items-center gap-2 uppercase tracking-wider"
                   >
                     <Download className="w-3.5 h-3.5" />
                     Export Report
                   </button>
                   <button
                     onClick={() => load()}
-                    className="text-xs font-black text-gray-500 dark:text-gray-400 hover:text-neutral-dark dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-dark border border-gray-200 dark:border-neutral-border/60 active:scale-95 px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all"
+                    className="text-xs font-bold text-gray-500 dark:text-gray-400 hover:text-neutral-dark dark:hover:text-white hover:bg-gray-100 dark:hover:bg-neutral-dark border border-gray-200 dark:border-neutral-border/60 active:scale-95 px-4 py-2.5 rounded-xl flex items-center gap-2 transition-all"
                   >
                     <RefreshCw className="w-3.5 h-3.5" />
                     Refresh
@@ -982,7 +985,7 @@ const AdminScreen: React.FC = () => {
                     <button
                       key={f}
                       onClick={() => setFilterUserStatus(f)}
-                      className={`py-1.5 px-3.5 text-[10px] font-extrabold uppercase rounded-full border transition-all ${
+                      className={`py-1.5 px-3.5 text-[10px] font-semibold uppercase rounded-full border transition-all ${
                         filterUserStatus === f ? 'bg-primary border-primary text-white shadow-sm shadow-primary/20' : 'bg-transparent border-gray-200 dark:border-neutral-border text-gray-400 hover:text-gray-600'
                       }`}
                     >{f}</button>
@@ -990,10 +993,10 @@ const AdminScreen: React.FC = () => {
                 </div>
               </div>
               <div className="flex items-center gap-3.5 shrink-0 w-full sm:w-auto justify-between sm:justify-start">
-                <span className="text-[10px] font-extrabold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{filteredUsers.length} users</span>
+                <span className="text-[10px] font-semibold text-gray-400 dark:text-gray-500 uppercase tracking-widest">{filteredUsers.length} users</span>
                 <button
                   onClick={downloadUsersReport}
-                  className="text-[10px] font-black text-white bg-neutral-dark dark:bg-primary hover:opacity-90 px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5 uppercase tracking-wider"
+                  className="text-[10px] font-bold text-white bg-neutral-dark dark:bg-primary hover:opacity-90 px-3.5 py-2 rounded-xl transition-all shadow-sm flex items-center gap-1.5 uppercase tracking-wider"
                 >
                   📥 Export PDF
                 </button>
@@ -1160,7 +1163,7 @@ const AdminScreen: React.FC = () => {
                     <tr key={wd.id} className="hover:bg-gray-50/50 dark:hover:bg-neutral-dark/10 transition-colors">
                       <td className="px-5 py-4 text-gray-400 whitespace-nowrap">{new Date(wd.createdDate).toLocaleString()}</td>
                       <td className="px-5 py-4 font-mono text-[11px] select-all break-all max-w-[240px]">{wd.address}</td>
-                      <td className="px-5 py-4 text-right font-black tabular-nums">{formatCurrency(wd.amount)}</td>
+                      <td className="px-5 py-4 text-right font-bold tabular-nums">{formatCurrency(wd.amount)}</td>
                       <td className="px-5 py-4 text-center whitespace-nowrap">
                         <button onClick={() => decide(wd.id, 'approve')} className="bg-success text-white hover:bg-success-dark px-3 py-1.5 rounded-lg text-[10px] font-bold mr-2.5 shadow-sm transition-colors">Approve</button>
                         <button onClick={() => decide(wd.id, 'reject')} className="bg-transparent border border-gray-200 dark:border-neutral-border hover:border-danger hover:text-danger px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all">Reject</button>
@@ -1253,7 +1256,7 @@ const AdminScreen: React.FC = () => {
               </div>
 
               <div>
-                <label className="block text-[10px] font-extrabold uppercase text-gray-400 mb-1.5">House Margin / Vigorish (%)</label>
+                <label className="block text-[10px] font-semibold uppercase text-gray-400 mb-1.5">House Margin / Vigorish (%)</label>
                 <div className="relative">
                   <input type="number" step="0.1" min="1" max="20" value={marginInput} onChange={e => setMarginInput(e.target.value)}
                     className="w-full px-3.5 py-2.5 border border-gray-200 dark:border-neutral-border bg-transparent rounded-xl text-xs font-semibold focus:outline-none focus:border-primary dark:text-white" />
@@ -1270,7 +1273,7 @@ const AdminScreen: React.FC = () => {
                   { label: 'Max Withdrawal (USD)', val: maxWdInput, set: setMaxWdInput },
                 ].map(({ label, val, set }) => (
                   <div key={label}>
-                    <label className="block text-[10px] font-extrabold uppercase text-gray-400 mb-1.5">{label}</label>
+                    <label className="block text-[10px] font-semibold uppercase text-gray-400 mb-1.5">{label}</label>
                     <input type="number" step="0.01" min="0" value={val} onChange={e => set(e.target.value)}
                       className="w-full px-3.5 py-2.5 border border-gray-200 dark:border-neutral-border bg-transparent rounded-xl text-xs font-semibold focus:outline-none focus:border-primary dark:text-white" />
                   </div>
@@ -1315,19 +1318,19 @@ const AdminScreen: React.FC = () => {
               <div className="grid grid-cols-2 gap-3">
                 <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5">
                   <p className="text-[9px] font-bold text-gray-400 uppercase">Balance</p>
-                  <p className="text-xl font-black mt-1 tabular-nums dark:text-white">{formatCurrency(selectedUser.balance)}</p>
+                  <p className="text-xl font-bold mt-1 tabular-nums dark:text-white">{formatCurrency(selectedUser.balance)}</p>
                 </div>
                 <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5">
                   <p className="text-[9px] font-bold text-gray-400 uppercase">Total Staked</p>
-                  <p className="text-xl font-black mt-1 tabular-nums dark:text-white">{formatCurrency(selectedUser.totalStaked)}</p>
+                  <p className="text-xl font-bold mt-1 tabular-nums dark:text-white">{formatCurrency(selectedUser.totalStaked)}</p>
                 </div>
                 <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5">
                   <p className="text-[9px] font-bold text-gray-400 uppercase">Total Bets</p>
-                  <p className="text-xl font-black mt-1 dark:text-white">{selectedUser.bets}</p>
+                  <p className="text-xl font-bold mt-1 dark:text-white">{selectedUser.bets}</p>
                 </div>
                 <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5">
                   <p className="text-[9px] font-bold text-gray-400 uppercase">KYC Status</p>
-                  <p className={`text-sm font-black mt-2 ${selectedUser.verified ? 'text-success' : 'text-amber-500'}`}>
+                  <p className={`text-sm font-bold mt-2 ${selectedUser.verified ? 'text-success' : 'text-amber-500'}`}>
                     {selectedUser.verified ? '✓ Verified' : '✗ Unverified'}
                   </p>
                 </div>

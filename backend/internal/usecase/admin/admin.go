@@ -87,7 +87,15 @@ func (s *Service) Stats() (Stats, error) {
 		return Stats{}, err
 	}
 
-	st := Stats{Users: len(wallets)}
+	// A wallet is auto-created for every device that merely loads the app, so
+	// len(wallets) over-counts. "Players" = wallets that actually transacted or
+	// bet; empty guest/seed wallets don't count.
+	betDevices := make(map[string]bool)
+	for _, b := range bets {
+		betDevices[b.DeviceID] = true
+	}
+
+	st := Stats{}
 	dailyMap := make(map[string]*DailyStat)
 	now := time.Now()
 	for i := 0; i < 7; i++ {
@@ -96,6 +104,9 @@ func (s *Service) Stats() (Stats, error) {
 	}
 
 	for _, w := range wallets {
+		if len(w.Transactions) > 0 || betDevices[w.DeviceID] {
+			st.Users++
+		}
 		st.TotalBalance += w.Balance
 		for _, t := range w.Transactions {
 			dStr := t.Date.Format("2006-01-02")
@@ -171,6 +182,11 @@ func (s *Service) Users() ([]UserRow, error) {
 
 	rows := make([]UserRow, 0, len(wallets))
 	for _, w := range wallets {
+		// Skip auto-created guest/seed wallets with no activity so the table shows
+		// real players, matching the headline "Players" count.
+		if len(w.Transactions) == 0 && countBy[w.DeviceID] == 0 {
+			continue
+		}
 		verified, _ := s.kyc.IsVerified(w.DeviceID)
 		rows = append(rows, UserRow{
 			DeviceID:    w.DeviceID,
