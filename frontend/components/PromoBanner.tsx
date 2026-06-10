@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 
 interface Slide {
   title: string;
@@ -6,6 +7,8 @@ interface Slide {
   cta: string;
   image: string;
   fallback: string; // gradient shown until/if the image fails
+  to?: string;      // route to navigate to on CTA click
+  scrollTo?: string; // element id to scroll to on CTA click (same-page action)
 }
 
 const img = (id: string) => `https://images.unsplash.com/photo-${id}?w=1280&q=80&auto=format&fit=crop`;
@@ -17,6 +20,7 @@ const slides: Slide[] = [
     cta: 'Bet now',
     image: img('1522778119026-d647f0596c20'),
     fallback: 'from-[#FF6B35] to-[#FFA726]',
+    scrollTo: 'match-board',
   },
   {
     title: 'Live in-play betting',
@@ -24,6 +28,7 @@ const slides: Slide[] = [
     cta: 'Go live',
     image: img('1540747913346-19e32dc3e97e'),
     fallback: 'from-[#0F1115] to-[#374151]',
+    scrollTo: 'match-board',
   },
   {
     title: 'Welcome bonus',
@@ -31,13 +36,20 @@ const slides: Slide[] = [
     cta: 'Claim now',
     image: img('1459865264687-595d652de67e'),
     fallback: 'from-[#16A34A] to-[#166534]',
+    to: '/wallet',
   },
 ];
 
 /** Auto-rotating promo hero with real photography and a readable gradient scrim. */
 export const PromoBanner: React.FC = () => {
   const [i, setI] = useState(0);
+  const navigate = useNavigate();
   const next = useCallback(() => setI((p) => (p + 1) % slides.length), []);
+
+  const handleCta = (s: Slide) => {
+    if (s.to) navigate(s.to);
+    else if (s.scrollTo) document.getElementById(s.scrollTo)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
 
   useEffect(() => {
     const t = setInterval(next, 5000);
@@ -60,9 +72,13 @@ export const PromoBanner: React.FC = () => {
             <div className="relative h-full flex flex-col justify-center px-6 sm:px-10 max-w-xl">
               <h2 className="text-white text-xl sm:text-3xl font-extrabold leading-tight drop-shadow">{s.title}</h2>
               <p className="text-white/85 text-sm sm:text-base mt-1.5">{s.subtitle}</p>
-              <span className="mt-3 inline-flex w-max items-center bg-primary hover:bg-primary-dark text-white text-sm font-bold px-4 py-2 rounded-xl transition-colors cursor-pointer">
+              <button
+                type="button"
+                onClick={() => handleCta(s)}
+                className="mt-3 inline-flex w-max items-center bg-primary hover:bg-primary-dark active:scale-95 text-white text-sm font-bold px-4 py-2 rounded-xl transition-all"
+              >
                 {s.cta}
-              </span>
+              </button>
             </div>
           </div>
         ))}

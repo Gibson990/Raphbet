@@ -160,7 +160,7 @@ const HomeScreen: React.FC = () => {
       <div className="space-y-5">
         <PromoBanner />
 
-        <div className="bg-white dark:bg-neutral-dark-gray rounded-2xl border border-gray-200 dark:border-neutral-border p-3 sm:p-5">
+        <div id="match-board" className="bg-white dark:bg-neutral-dark-gray rounded-2xl border border-gray-200 dark:border-neutral-border p-3 sm:p-5 scroll-mt-20">
           <div className="flex items-center gap-3 mb-4">
             {selectedLeague ? (
               <img src={selectedLeague.logo} alt={`${selectedLeague.name} logo`} className="h-9 w-9 object-contain" />
