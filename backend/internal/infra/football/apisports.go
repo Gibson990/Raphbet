@@ -33,15 +33,11 @@ func NewAPISportsProvider(baseURL, apiKey, season string) *APISportsProvider {
 	}
 }
 
-// Leagues returns the competitions the app offers. We keep this static (the
-// FIFA World Cup, league id 1) to avoid spending request budget on metadata.
+// Leagues returns the curated competitions the app offers. Kept static (shared
+// with the mock) to avoid spending request budget on metadata; matches for each
+// are fetched on demand by id.
 func (p *APISportsProvider) Leagues(ctx context.Context) ([]domain.League, error) {
-	return []domain.League{{
-		ID:      worldCupID,
-		Name:    "FIFA World Cup",
-		Country: "World",
-		Logo:    "https://media.api-sports.io/football/leagues/1.png",
-	}}, nil
+	return CuratedLeagues, nil
 }
 
 func (p *APISportsProvider) get(ctx context.Context, path string, q url.Values, out any) error {

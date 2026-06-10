@@ -34,22 +34,23 @@ import (
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/support"
 )
 
-// worldCupLeagueID is the league the betting market board and settlement worker
-// operate on (FIFA World Cup). Kept in one place so the odds resolver and the
-// results provider stay in sync.
-const worldCupLeagueID = "1"
-
-// oddsResolver adapts the football use case to betting.OddsResolver, binding the
-// lookup to the World Cup league so the betting service stays league-agnostic.
+// oddsResolver adapts the football use case to betting.OddsResolver. It searches
+// the curated leagues for the selection's match so a bet on any offered league
+// is repriced server-side (match ids are unique across leagues).
 type oddsResolver struct {
-	fs     *footballuc.Service
-	league string
+	fs      *footballuc.Service
+	leagues []string
 }
 
 func (r oddsResolver) OddsForSelection(matchID, marketCode string) (float64, bool) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	return r.fs.OddsForSelection(ctx, r.league, matchID, marketCode)
+	for _, lg := range r.leagues {
+		if price, ok := r.fs.OddsForSelection(ctx, lg, matchID, marketCode); ok {
+			return price, true
+		}
+	}
+	return 0, false
 }
 
 func main() {
@@ -149,7 +150,7 @@ func main() {
 	// Authoritative odds: reprice every placed selection server-side so a forged
 	// "odds" field in a bet request can never inflate the payout. The World Cup is
 	// league "1"; the resolver looks selections up on the live market board.
-	bettingService.SetOddsResolver(oddsResolver{fs: footballService, league: worldCupLeagueID})
+	bettingService.SetOddsResolver(oddsResolver{fs: footballService, leagues: footballinfra.LeagueIDs()})
 
 	// Front-end base URL (for provider success/return redirects).
 	frontendBase := "http://localhost:3000"
@@ -183,7 +184,7 @@ func main() {
 	supportService := support.New(tickets)
 
 	// Settlement worker: settle pending bets from real World Cup results.
-	results := settlement.NewFootballResults(footballService, worldCupLeagueID)
+	results := settlement.NewFootballResults(footballService, footballinfra.LeagueIDs()...)
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
 	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, supportService, oddsEngine, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret, configRepo)

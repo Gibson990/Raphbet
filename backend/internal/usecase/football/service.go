@@ -34,10 +34,21 @@ func (s *Service) Matches(ctx context.Context, leagueID string) ([]domain.Match,
 		return nil, err
 	}
 
-	// Dynamically shift the first 8 historical matches into active Live and Upcoming states
-	// so the user-side betting UI is active and interactive for testing/demo purposes.
-	now := time.Now()
+	// Demo treatment: when a league has no live/upcoming matches (e.g. the
+	// upstream only returns historical seasons on the current plan), shift the
+	// first few into active Live/Upcoming states so the board is bettable. If the
+	// provider already supplies live/upcoming fixtures (the mock does), they are
+	// left untouched so real statuses — and finished results for settlement — are
+	// preserved.
+	hasBettable := false
 	for i := range matches {
+		if matches[i].Status == domain.StatusLive || matches[i].Status == domain.StatusUpcoming {
+			hasBettable = true
+			break
+		}
+	}
+	now := time.Now()
+	for i := 0; hasBettable == false && i < len(matches); i++ {
 		if i < 8 {
 			switch i {
 			case 0:
