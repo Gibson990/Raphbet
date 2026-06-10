@@ -59,7 +59,9 @@ const WalletScreen: React.FC = () => {
           </div>
           <div className="flex items-center justify-between">
             <p className="text-sm font-medium opacity-90">Available balance</p>
-            <span className="text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wide">Virtual</span>
+            <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wide">
+              <LockIcon className="h-3 w-3" /> USDT
+            </span>
           </div>
           <p className="text-4xl font-extrabold tracking-tight mt-1 tabular-nums">{format(balance)}</p>
           {code !== 'USDT' && code !== 'USD' && (

@@ -4,6 +4,7 @@ import { MatchList } from '../components/MatchList';
 import { StandingsTable } from '../components/StandingsTable';
 import { BetSlip } from '../components/BetSlip';
 import { BetPlacedModal, type BetPlacedInfo } from '../components/BetPlacedModal';
+import { ResultModal } from '../components/common/ResultModal';
 import { MarketsModal } from '../components/MarketsModal';
 import { PromoBanner } from '../components/PromoBanner';
 import { SoccerBallIcon, TicketIcon } from '../components/icons';
@@ -25,6 +26,7 @@ const HomeScreen: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'matches' | 'standings'>('matches');
   const [isBetSlipOpen, setIsBetSlipOpen] = useState(false);
   const [placed, setPlaced] = useState<BetPlacedInfo | null>(null);
+  const [placeError, setPlaceError] = useState<string | null>(null);
   const [marketsMatch, setMarketsMatch] = useState<Match | null>(null);
   const { isLoggedIn, isVerified } = useAuth();
   const navigate = useNavigate();
@@ -140,7 +142,8 @@ const HomeScreen: React.FC = () => {
       setIsBetSlipOpen(false);
       setPlaced({ count, stake, payout });
     } else {
-      addToast(result.message, 'error');
+      setIsBetSlipOpen(false);
+      setPlaceError(result.message);
     }
   }
   
@@ -300,6 +303,20 @@ const HomeScreen: React.FC = () => {
 
       {/* Bet placed success screen */}
       {placed && <BetPlacedModal info={placed} onClose={() => setPlaced(null)} />}
+
+      {/* Bet failed screen */}
+      {placeError && (
+        <ResultModal
+          variant="error"
+          title="Bet not placed"
+          message={placeError}
+          primaryLabel="Try again"
+          onPrimary={() => { setPlaceError(null); setIsBetSlipOpen(true); }}
+          secondaryLabel="Close"
+          onSecondary={() => setPlaceError(null)}
+          onClose={() => setPlaceError(null)}
+        />
+      )}
 
       {/* Full market board for a match */}
       {marketsMatch && (

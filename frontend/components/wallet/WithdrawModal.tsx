@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import Modal from '../common/Modal';
+import { ResultModal } from '../common/ResultModal';
 import { ToastMessage } from '../../App';
 import { fetchLimits, cachedLimits, usd, type AppLimits } from '../../services/config';
 
@@ -14,6 +15,7 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
     const [amount, setAmount] = useState(0); // USD dollars
     const [address, setAddress] = useState('');
     const [submitting, setSubmitting] = useState(false);
+    const [done, setDone] = useState<number | null>(null); // cents, set on success
     const [limits, setLimits] = useState<AppLimits>(cachedLimits());
     useEffect(() => { fetchLimits().then(setLimits); }, []);
 
@@ -29,12 +31,30 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
         const result = await onWithdraw(cents, address.trim());
         setSubmitting(false);
         if (result.success) {
-            addToast(result.message, 'success');
-            onClose();
+            setDone(cents); // show the success screen
         } else {
             addToast(result.message, 'error');
         }
     };
+
+    // Success screen — shown after the request is accepted (funds held, pending review).
+    if (done !== null) {
+        return (
+            <ResultModal
+                variant="success"
+                title="Withdrawal requested"
+                message="Your funds are held and the payout is pending review — usually completed within a few hours."
+                details={[
+                    { label: 'Amount', value: usd(done), accent: true },
+                    { label: 'To address', value: address.slice(0, 10) + '…' },
+                    { label: 'Status', value: 'Pending review' },
+                ]}
+                primaryLabel="Done"
+                onPrimary={onClose}
+                onClose={onClose}
+            />
+        );
+    }
 
     return (
         <Modal title="Withdraw crypto" onClose={onClose}>
