@@ -163,6 +163,18 @@ const HomeScreen: React.FC = () => {
       <div className="space-y-5">
         <PromoBanner />
 
+        {/* League filter — directly below the slide view, wraps (no side-scroll). */}
+        {leagues.length > 1 && (
+          <LeagueSelector
+            leagues={leagues}
+            selectedLeagueId={selectedLeagueId}
+            setSelectedLeagueId={(id) => {
+              setSelectedLeagueId(id);
+              setActiveTab('matches');
+            }}
+          />
+        )}
+
         <div id="match-board" className="bg-white dark:bg-neutral-dark-gray rounded-2xl border border-gray-200 dark:border-neutral-border p-3 sm:p-5 scroll-mt-20">
           <div className="flex items-center gap-3 mb-4">
             {selectedLeague ? (
@@ -175,17 +187,6 @@ const HomeScreen: React.FC = () => {
               <p className="text-gray-400 text-xs">{selectedLeague?.country}</p>
             </div>
           </div>
-
-          {leagues.length > 1 && (
-            <LeagueSelector
-              leagues={leagues}
-              selectedLeagueId={selectedLeagueId}
-              setSelectedLeagueId={(id) => {
-                setSelectedLeagueId(id);
-                setActiveTab('matches');
-              }}
-            />
-          )}
 
           <div className="mt-2">
             <div className="flex gap-1 border-b border-gray-200 dark:border-neutral-border">

@@ -7,13 +7,12 @@ interface LeagueSelectorProps {
   setSelectedLeagueId: (id: string) => void;
 }
 
-/** Horizontal, scrollable league filter — logo + name chips, active highlighted.
- *  Clean and simple: one row, no nested menus. */
+/** League filter — logo + name chips that wrap onto multiple rows (no side-scroll).
+ *  Clean and simple: tap a league to switch the board. */
 export const LeagueSelector: React.FC<LeagueSelectorProps> = ({ leagues, selectedLeagueId, setSelectedLeagueId }) => {
   return (
-    <div className="overflow-x-auto -mx-1 px-1 pb-1 scrollbar-none">
-      <div className="flex gap-2">
-        {leagues.map((league) => {
+    <div className="flex flex-wrap gap-2">
+      {leagues.map((league) => {
           const active = selectedLeagueId === league.id;
           return (
             <button
@@ -39,7 +38,6 @@ export const LeagueSelector: React.FC<LeagueSelectorProps> = ({ leagues, selecte
             </button>
           );
         })}
-      </div>
     </div>
   );
 };
