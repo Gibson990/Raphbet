@@ -25,7 +25,7 @@ export const BottomNav: React.FC<BottomNavProps> = ({ betSlipCount }) => {
             end={end}
             className={({ isActive }) =>
               `flex flex-col items-center justify-center w-full pt-2 pb-1 transition-colors ${
-                isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400 hover:text-primary'
+                isActive ? 'text-primary' : 'text-gray-500 dark:text-gray-400'
               }`
             }
           >
