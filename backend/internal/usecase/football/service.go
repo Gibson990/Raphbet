@@ -5,11 +5,29 @@ package football
 
 import (
 	"context"
+	"sort"
 	"time"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
 	"github.com/Gibson990/Raphbet/backend/internal/usecase/odds"
 )
+
+// maxBoard caps how many matches a league returns. A full season can be ~380
+// fixtures; rendering them all bloats the payload and can hang the browser. We
+// surface a focused slate: live first, then soonest upcoming, then most-recent
+// finished.
+const maxBoard = 40
+
+func statusRank(s domain.MatchStatus) int {
+	switch s {
+	case domain.StatusLive:
+		return 0
+	case domain.StatusUpcoming:
+		return 1
+	default:
+		return 2
+	}
+}
 
 // Service exposes the football operations the API needs.
 type Service struct {
@@ -101,6 +119,22 @@ func (s *Service) Matches(ctx context.Context, leagueID string) ([]domain.Match,
 				matches[i].Time = ""
 			}
 		}
+	}
+
+	// Focus the board (live → soonest upcoming → most-recent finished) and cap it
+	// before pricing, so we never compute markets for a whole historical season.
+	sort.SliceStable(matches, func(a, b int) bool {
+		ra, rb := statusRank(matches[a].Status), statusRank(matches[b].Status)
+		if ra != rb {
+			return ra < rb
+		}
+		if matches[a].Status == domain.StatusFinished {
+			return matches[a].Date.After(matches[b].Date) // most recent finished first
+		}
+		return matches[a].Date.Before(matches[b].Date) // soonest upcoming first
+	})
+	if len(matches) > maxBoard {
+		matches = matches[:maxBoard]
 	}
 
 	for i := range matches {
