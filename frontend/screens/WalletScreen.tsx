@@ -6,6 +6,7 @@ import { useCurrency } from '../contexts/CurrencyContext';
 import { CurrencySelect } from '../components/CurrencySelect';
 import TopUpModal from '../components/wallet/TopUpModal';
 import WithdrawModal from '../components/wallet/WithdrawModal';
+import { downloadTransactionReceipt } from '../services/receipt';
 
 const CryptoBadge: React.FC<{ label: string }> = ({ label }) => (
   <div className="h-9 inline-flex items-center justify-center rounded-lg px-3 font-bold text-xs bg-gray-100 dark:bg-neutral-dark border border-gray-200 dark:border-neutral-border">
@@ -15,11 +16,12 @@ const CryptoBadge: React.FC<{ label: string }> = ({ label }) => (
 
 const usdt = (cents: number) => (cents / 100).toFixed(2);
 
-const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction }) => {
+const TransactionRow: React.FC<{ transaction: Transaction; onDownloadFail: () => void }> = ({ transaction, onDownloadFail }) => {
   const { format } = useCurrency();
   const isCredit = transaction.type === 'Payout' || transaction.type === 'Top-up';
+  const download = () => { if (!downloadTransactionReceipt(transaction, format)) onDownloadFail(); };
   return (
-    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-neutral-border last:border-b-0">
+    <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-neutral-border last:border-b-0 group">
       <div className="flex items-center gap-3 min-w-0">
         <div className={`p-2 rounded-full shrink-0 ${isCredit ? 'bg-success/10' : 'bg-danger/10'}`}>
           {isCredit ? <ChevronUpIcon className="h-4 w-4 text-success" /> : <ChevronDownIcon className="h-4 w-4 text-danger" />}
@@ -29,9 +31,21 @@ const TransactionRow: React.FC<{ transaction: Transaction }> = ({ transaction })
           <p className="text-xs text-gray-400">{new Date(transaction.date).toLocaleString()}</p>
         </div>
       </div>
-      <p className={`font-bold text-sm tabular-nums shrink-0 ${isCredit ? 'text-success' : 'text-danger'}`}>
-        {isCredit ? '+' : ''}{format(transaction.amount)}
-      </p>
+      <div className="flex items-center gap-2 shrink-0">
+        <p className={`font-bold text-sm tabular-nums ${isCredit ? 'text-success' : 'text-danger'}`}>
+          {isCredit ? '+' : ''}{format(transaction.amount)}
+        </p>
+        <button
+          onClick={download}
+          title="Download receipt"
+          aria-label="Download receipt"
+          className="text-gray-300 dark:text-gray-600 hover:text-primary transition-colors p-1 opacity-60 group-hover:opacity-100"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16v2a2 2 0 002 2h12a2 2 0 002-2v-2M7 10l5 5 5-5M12 15V3" />
+          </svg>
+        </button>
+      </div>
     </div>
   );
 };
@@ -99,7 +113,13 @@ const WalletScreen: React.FC = () => {
           <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-2 sm:p-4">
             {transactions.length > 0 ? (
               <>
-                {transactions.slice(0, visibleTx).map(t => <TransactionRow key={t.id} transaction={t} />)}
+                {transactions.slice(0, visibleTx).map(t => (
+                  <TransactionRow
+                    key={t.id}
+                    transaction={t}
+                    onDownloadFail={() => addToast('Could not generate the receipt. Please try again.', 'error')}
+                  />
+                ))}
                 {transactions.length > visibleTx && (
                   <button onClick={() => setVisibleTx(v => v + 8)} className="w-full mt-2 py-2 text-sm font-semibold text-primary hover:underline">
                     Show more ({transactions.length - visibleTx})
