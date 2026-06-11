@@ -83,12 +83,13 @@ export interface Bet {
 export interface PlacedBet extends Bet {
   id: string;
   placedDate: string;
-  status: 'PENDING' | 'WON' | 'LOST';
+  status: 'PENDING' | 'WON' | 'LOST' | 'CASHED_OUT';
   payout?: number;
   isMulti?: boolean;
   selections?: BetSelection[];
   multiplier?: number;
   winBoost?: number;
+  cashoutValue?: number; // live early-settlement offer (USD cents), 0/absent if unavailable
 }
 
 export interface Transaction {

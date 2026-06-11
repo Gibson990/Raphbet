@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
+	"github.com/Gibson990/Raphbet/backend/internal/usecase/markets"
 )
 
 var (
@@ -79,9 +80,18 @@ type Service struct {
 	initialBalance domain.Money
 	limits         Limits
 	limitsMu       sync.RWMutex
-	locks          sync.Map     // deviceID -> *sync.Mutex, serialises wallet mutations
-	odds           OddsResolver // nil in tests; set in production to validate prices
+	locks          sync.Map           // deviceID -> *sync.Mutex, serialises wallet mutations
+	odds           OddsResolver       // nil in tests; set in production to validate prices
+	matchState     MatchStateResolver // nil disables cash-out
 }
+
+// MatchStateResolver returns a match's live state for cash-out pricing.
+type MatchStateResolver interface {
+	MatchState(matchID string) (status string, home, away, elapsed int, ok bool)
+}
+
+// SetMatchStateResolver enables cash-out by wiring live match state.
+func (s *Service) SetMatchStateResolver(r MatchStateResolver) { s.matchState = r }
 
 // SetOddsResolver wires the canonical odds source. Once set, every placed
 // selection is repriced server-side, so forged client odds are ignored.
@@ -579,6 +589,95 @@ func (s *Service) CreditPayout(deviceID string, amount domain.Money, desc string
 	w.Balance += amount
 	s.addTx(w, domain.TxPayout, amount, desc)
 	return s.wallets.Save(w)
+}
+
+// ErrNotCashable means the bet can't be cashed out (not pending, an
+// accumulator, the match isn't live/upcoming, or no offer is available).
+var ErrNotCashable = errors.New("this bet can't be cashed out right now")
+
+// cashoutMargin: the house retains this fraction of the fair value on an early
+// settlement (so cash-out always carries an edge and can't be arbitraged).
+const cashoutMargin = 0.90
+
+// CashoutValue returns the current early-settlement offer for a pending single
+// bet, or 0 when cash-out isn't available. Conservative by design: an upcoming
+// bet returns ~90% of stake; a live bet is valued from the current score and
+// time remaining, always less than the full potential payout.
+func (s *Service) CashoutValue(b *domain.Bet) domain.Money {
+	if s.matchState == nil || b == nil || b.Status != domain.BetPending || b.IsMulti {
+		return 0
+	}
+	status, home, away, elapsed, ok := s.matchState.MatchState(b.Selection.MatchID)
+	if !ok {
+		return 0
+	}
+	potential := float64(b.Wager) * b.Selection.Odds
+	var pWin float64
+	switch domain.MatchStatus(status) {
+	case domain.StatusUpcoming:
+		pWin = 1.0 / b.Selection.Odds
+	case domain.StatusLive:
+		won, done := markets.Evaluate(b.Selection.Market, markets.Result{FTHome: home, FTAway: away})
+		progress := math.Max(0, math.Min(1, float64(elapsed)/90.0))
+		switch {
+		case !done:
+			pWin = 1.0 / b.Selection.Odds
+		case won:
+			pWin = 0.5 + 0.45*progress // currently winning, more confident as time runs out
+		default:
+			pWin = (1.0 / b.Selection.Odds) * (1 - progress) // currently losing, hope decays
+		}
+	default: // finished/unknown — no cash-out
+		return 0
+	}
+	v := domain.Money(math.Round(potential * pWin * cashoutMargin))
+	if v < 0 {
+		v = 0
+	}
+	if cap := domain.Money(potential); v > cap {
+		v = cap
+	}
+	return v
+}
+
+// CashOut settles a pending single bet early for the current cash-out value.
+func (s *Service) CashOut(deviceID, betID string) (*domain.Bet, *domain.Wallet, error) {
+	defer s.lock(deviceID)()
+	pending, err := s.bets.ListPending()
+	if err != nil {
+		return nil, nil, err
+	}
+	var bet *domain.Bet
+	for _, b := range pending {
+		if b.ID == betID && b.DeviceID == deviceID {
+			bet = b
+			break
+		}
+	}
+	if bet == nil || bet.IsMulti {
+		return nil, nil, ErrNotCashable
+	}
+	value := s.CashoutValue(bet)
+	if value <= 0 {
+		return nil, nil, ErrNotCashable
+	}
+	// Mark settled first so the settlement worker can never pay it again, then
+	// credit the wallet (we already hold this device's lock).
+	bet.Status = domain.BetCashedOut
+	bet.Payout = value
+	if err := s.bets.Update(bet); err != nil {
+		return nil, nil, err
+	}
+	w, err := s.Wallet(deviceID)
+	if err != nil {
+		return nil, nil, err
+	}
+	w.Balance += value
+	s.addTx(w, domain.TxPayout, value, "Cash out: "+bet.Selection.MarketLabel)
+	if err := s.wallets.Save(w); err != nil {
+		return nil, nil, err
+	}
+	return bet, w, nil
 }
 
 func (s *Service) addTx(w *domain.Wallet, t domain.TxType, amount domain.Money, desc string) {

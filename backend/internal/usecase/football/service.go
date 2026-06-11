@@ -151,6 +151,47 @@ func (s *Service) Matches(ctx context.Context, leagueID string) ([]domain.Match,
 	return matches, nil
 }
 
+// MatchStateFor returns a match's live state (status, score, elapsed minutes)
+// for cash-out pricing. ok is false when the match isn't on the board.
+func (s *Service) MatchStateFor(ctx context.Context, leagueID, matchID string) (status string, home, away, elapsed int, ok bool) {
+	matches, err := s.Matches(ctx, leagueID)
+	if err != nil {
+		return "", 0, 0, 0, false
+	}
+	for i := range matches {
+		if matches[i].ID != matchID {
+			continue
+		}
+		m := matches[i]
+		if m.Score != nil {
+			home, away = m.Score.Home, m.Score.Away
+		}
+		return string(m.Status), home, away, parseElapsed(m.Time, m.Status), true
+	}
+	return "", 0, 0, 0, false
+}
+
+// parseElapsed turns a clock label ("57'", "HT", "FT") into elapsed minutes.
+func parseElapsed(t string, st domain.MatchStatus) int {
+	if st == domain.StatusFinished {
+		return 90
+	}
+	switch t {
+	case "HT":
+		return 45
+	case "FT":
+		return 90
+	}
+	n := 0
+	for i := 0; i < len(t) && t[i] >= '0' && t[i] <= '9'; i++ {
+		n = n*10 + int(t[i]-'0')
+	}
+	if n == 0 && st == domain.StatusLive {
+		return 45
+	}
+	return n
+}
+
 // Standings returns the league table for a league.
 func (s *Service) Standings(ctx context.Context, leagueID string) ([]domain.Standing, error) {
 	return s.provider.Standings(ctx, leagueID)

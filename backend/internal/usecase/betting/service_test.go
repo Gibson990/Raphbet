@@ -158,6 +158,67 @@ func TestLiabilityCapRejectsOverexposure(t *testing.T) {
 	// use the same match but this proves the per-outcome keying via a fresh cap).
 }
 
+// fixedState is a test MatchStateResolver.
+type fixedState struct {
+	status               string
+	home, away, elapsed  int
+}
+
+func (f fixedState) MatchState(string) (string, int, int, int, bool) {
+	return f.status, f.home, f.away, f.elapsed, true
+}
+
+// Cash-out must never overpay and never let a bet+immediate-cashout profit.
+func TestCashOutPricingIsSafe(t *testing.T) {
+	mem := store.NewMemoryStore()
+	svc := New(mem, mem, mem, 1_000_000, testLimits)
+	svc.SetOddsResolver(fixedOdds{price: 2.0})
+	const dev = "device-cash"
+
+	place := func() *domain.Bet {
+		placed, _, err := svc.PlaceBet(dev, []PlaceItem{{
+			Selection: domain.BetSelection{MatchID: "m1", Market: "1", Odds: 2.0}, Wager: 1000,
+		}})
+		if err != nil {
+			t.Fatal(err)
+		}
+		return placed[0]
+	}
+
+	// Upcoming: offer ~90% of stake (never more than stake), never > potential.
+	svc.SetMatchStateResolver(fixedState{status: "UPCOMING"})
+	b := place()
+	v := svc.CashoutValue(b)
+	if v <= 0 || v > 1000 {
+		t.Fatalf("upcoming cashout should be (0, stake], got %d", v)
+	}
+
+	// Live & currently winning (home 1-0) near full time: more than stake but
+	// never above the full potential payout (wager*odds = 2000).
+	svc.SetMatchStateResolver(fixedState{status: "LIVE", home: 1, away: 0, elapsed: 80})
+	v = svc.CashoutValue(b)
+	if v <= 0 || v > 2000 {
+		t.Fatalf("live-winning cashout must be within (0, potential], got %d", v)
+	}
+
+	// Actually cash out: bet becomes CASHED_OUT and the wallet is credited v.
+	before, _ := svc.Wallet(dev)
+	out, after, err := svc.CashOut(dev, b.ID)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if out.Status != domain.BetCashedOut {
+		t.Fatalf("expected CASHED_OUT, got %s", out.Status)
+	}
+	if after.Balance != before.Balance+out.Payout {
+		t.Fatalf("wallet not credited correctly: %d vs %d", after.Balance, before.Balance+out.Payout)
+	}
+	// A cashed-out bet can't be cashed out again.
+	if _, _, err := svc.CashOut(dev, b.ID); err != ErrNotCashable {
+		t.Fatalf("expected ErrNotCashable on second cashout, got %v", err)
+	}
+}
+
 // Refund on reject must restore exactly the held amount.
 func TestWithdrawalRejectRefunds(t *testing.T) {
 	mem := store.NewMemoryStore()

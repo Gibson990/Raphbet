@@ -40,9 +40,10 @@ type Wallet struct {
 type BetStatus string
 
 const (
-	BetPending BetStatus = "PENDING"
-	BetWon     BetStatus = "WON"
-	BetLost    BetStatus = "LOST"
+	BetPending   BetStatus = "PENDING"
+	BetWon       BetStatus = "WON"
+	BetLost      BetStatus = "LOST"
+	BetCashedOut BetStatus = "CASHED_OUT" // settled early by the player for a partial payout
 )
 
 // BetSelection mirrors the front-end selection on a 1X2 market.
@@ -67,6 +68,9 @@ type Bet struct {
 	IsMulti    bool           `json:"isMulti"`
 	Multiplier float64        `json:"multiplier,omitempty"`
 	WinBoost   float64        `json:"winBoost,omitempty"`
+	// CashoutValue is the current early-settlement offer for a pending bet.
+	// Computed on read (never stored), 0 when cash-out isn't available.
+	CashoutValue Money `json:"cashoutValue,omitempty" bson:"-"`
 }
 
 // WithdrawalStatus is the lifecycle of a withdrawal request.

@@ -75,3 +75,6 @@ export const placeBets = (items: PlaceItem[]) =>
 export const placeMultiBet = (selections: BetSelection[], wager: number) =>
   req<{ bets: PlacedBet[]; wallet: WalletDTO }>('/api/bets', { method: 'POST', body: JSON.stringify({ isMulti: true, selections, wager }) });
 
+export const cashOutBet = (betId: string) =>
+  req<{ bet: PlacedBet; wallet: WalletDTO }>(`/api/bets/${betId}/cashout`, { method: 'POST' });
+

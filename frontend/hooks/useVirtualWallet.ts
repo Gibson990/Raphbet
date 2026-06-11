@@ -1,6 +1,6 @@
 import { useState, useCallback, useEffect } from 'react';
 import type { Bet, PlacedBet, Transaction } from '../types';
-import { fetchWallet, fetchBets, topUp, requestWithdrawal, placeBets, placeMultiBet } from '../services/wallet';
+import { fetchWallet, fetchBets, topUp, requestWithdrawal, placeBets, placeMultiBet, cashOutBet } from '../services/wallet';
 
 type Result = { success: boolean; message: string; redirectUrl?: string };
 
@@ -88,6 +88,18 @@ export function useVirtualWallet() {
     }
   }, [betSlip, clearBetSlip]);
 
+  const cashOut = useCallback(async (betId: string): Promise<Result> => {
+    try {
+      const res = await cashOutBet(betId);
+      setBalance(res.wallet.balance);
+      setTransactions(res.wallet.transactions);
+      setPlacedBets((prev) => sortBets(prev.map((b) => (b.id === betId ? res.bet : b))));
+      return { success: true, message: `Cashed out for $${((res.bet.payout ?? 0) / 100).toFixed(2)}.` };
+    } catch (err) {
+      return { success: false, message: err instanceof Error ? err.message : 'Cash out failed.' };
+    }
+  }, []);
+
   const topUpWallet = useCallback(async (amount: number, method: string): Promise<Result> => {
     try {
       const r = await topUp(amount, method);
@@ -125,6 +137,7 @@ export function useVirtualWallet() {
     removeFromBetSlip,
     updateWager,
     placeBet,
+    cashOut,
     clearBetSlip,
     topUpWallet,
     withdrawFromWallet,

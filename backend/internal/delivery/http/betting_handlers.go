@@ -18,6 +18,8 @@ type BettingService interface {
 	PlaceBet(deviceID string, items []betting.PlaceItem) ([]*domain.Bet, *domain.Wallet, error)
 	PlaceMultiBet(deviceID string, selections []domain.BetSelection, wager domain.Money) (*domain.Bet, *domain.Wallet, error)
 	Bets(deviceID string) ([]*domain.Bet, error)
+	CashoutValue(b *domain.Bet) domain.Money
+	CashOut(deviceID, betID string) (*domain.Bet, *domain.Wallet, error)
 	RequestWithdrawal(deviceID string, amount domain.Money, address string) (*domain.Withdrawal, error)
 	Withdrawals(deviceID string) ([]*domain.Withdrawal, error)
 	PendingWithdrawals() ([]*domain.Withdrawal, error)
@@ -46,7 +48,7 @@ func bettingError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, betting.ErrInsufficient):
 		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "insufficient balance"})
-	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending), errors.Is(err, betting.ErrStakeRange), errors.Is(err, betting.ErrWithdrawalRange), errors.Is(err, betting.ErrBadSelection), errors.Is(err, betting.ErrDuplicateLeg), errors.Is(err, betting.ErrTooManyLegs), errors.Is(err, betting.ErrLiabilityCap):
+	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending), errors.Is(err, betting.ErrStakeRange), errors.Is(err, betting.ErrWithdrawalRange), errors.Is(err, betting.ErrBadSelection), errors.Is(err, betting.ErrDuplicateLeg), errors.Is(err, betting.ErrTooManyLegs), errors.Is(err, betting.ErrLiabilityCap), errors.Is(err, betting.ErrNotCashable):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
 		writeError(w, http.StatusInternalServerError, "betting operation failed", err)
@@ -192,5 +194,25 @@ func (h *Handlers) listBets(w http.ResponseWriter, r *http.Request) {
 		writeError(w, http.StatusInternalServerError, "failed to load bets", err)
 		return
 	}
+	// Attach the live cash-out offer to each pending bet (computed, not stored).
+	for _, b := range bets {
+		if b.Status == domain.BetPending {
+			b.CashoutValue = h.betting.CashoutValue(b)
+		}
+	}
 	writeJSON(w, http.StatusOK, bets)
+}
+
+// cashOut settles a pending single bet early for the current cash-out value.
+func (h *Handlers) cashOut(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.identity(w, r)
+	if !ok {
+		return
+	}
+	bet, wallet, err := h.betting.CashOut(id, r.PathValue("id"))
+	if err != nil {
+		bettingError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, map[string]any{"bet": bet, "wallet": wallet})
 }

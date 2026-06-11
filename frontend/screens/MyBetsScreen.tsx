@@ -18,17 +18,27 @@ const BetStatusBadge: React.FC<BetStatusBadgeProps> = ({ status }) => {
       return <span className={`${baseClasses} bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300`}>Won</span>;
     case 'LOST':
       return <span className={`${baseClasses} bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300`}>Lost</span>;
+    case 'CASHED_OUT':
+      return <span className={`${baseClasses} bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300`}>Cashed out</span>;
     default:
       return null;
   }
 };
 
-const BetHistoryCard: React.FC<{ bet: PlacedBet; onDownloadFail: () => void }> = ({ bet, onDownloadFail }) => {
+const BetHistoryCard: React.FC<{ bet: PlacedBet; onDownloadFail: () => void; onCashOut: (id: string) => Promise<void> }> = ({ bet, onDownloadFail, onCashOut }) => {
   const { format } = useCurrency();
+  const [cashingOut, setCashingOut] = useState(false);
 
   const handleDownload = () => {
     if (!downloadBetSlip(bet, format)) onDownloadFail();
   };
+
+  const doCashOut = async () => {
+    setCashingOut(true);
+    try { await onCashOut(bet.id); } finally { setCashingOut(false); }
+  };
+
+  const cashoutAvailable = bet.status === 'PENDING' && !bet.isMulti && (bet.cashoutValue ?? 0) > 0;
 
   // An accumulator carries multiple legs and a combined multiplier + win boost;
   // a single bet pays stake × odds. Compute the potential payout the same way
@@ -41,6 +51,7 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet; onDownloadFail: () => void }> =
 
   const getPayoutText = () => {
     if (bet.status === 'WON') return `+${format(bet.payout || 0)}`;
+    if (bet.status === 'CASHED_OUT') return `+${format(bet.payout || 0)}`;
     if (bet.status === 'LOST') return `-${format(bet.wager)}`;
     return format(potentialWin);
   };
@@ -91,6 +102,15 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet; onDownloadFail: () => void }> =
           </span>
         </div>
       </div>
+      {cashoutAvailable && (
+        <button
+          onClick={doCashOut}
+          disabled={cashingOut}
+          className="mt-3 w-full flex items-center justify-center gap-2 text-sm font-bold text-white bg-success hover:opacity-90 active:scale-[0.98] rounded-lg py-2.5 transition-all disabled:opacity-60"
+        >
+          {cashingOut ? 'Cashing out…' : `Cash out ${format(bet.cashoutValue!)}`}
+        </button>
+      )}
       <button
         onClick={handleDownload}
         className="mt-3 w-full flex items-center justify-center gap-1.5 text-xs font-semibold text-gray-500 dark:text-gray-400 hover:text-primary border border-gray-200 dark:border-neutral-border rounded-lg py-2 transition-colors"
@@ -109,13 +129,18 @@ const MyBetsScreen: React.FC = () => {
   const { wallet, addToast } = useAppOutlet();
   const bets = wallet.placedBets;
   const [activeTab, setActiveTab] = useState<'active' | 'settled'>('active');
-  
+
+  const handleCashOut = async (id: string) => {
+    const res = await wallet.cashOut(id);
+    addToast(res.message, res.success ? 'success' : 'error');
+  };
+
   const filteredBets = useMemo(() => {
     const sortedBets = [...bets].sort((a, b) => new Date(b.placedDate).getTime() - new Date(a.placedDate).getTime());
     if (activeTab === 'active') {
       return sortedBets.filter(b => b.status === 'PENDING');
     }
-    return sortedBets.filter(b => b.status === 'WON' || b.status === 'LOST');
+    return sortedBets.filter(b => b.status === 'WON' || b.status === 'LOST' || b.status === 'CASHED_OUT');
   }, [bets, activeTab]);
 
   return (
@@ -149,6 +174,7 @@ const MyBetsScreen: React.FC = () => {
               <BetHistoryCard
                 key={bet.id}
                 bet={bet}
+                onCashOut={handleCashOut}
                 onDownloadFail={() => addToast('Could not generate the receipt. Please try again.', 'error')}
               />
             ))}

@@ -21,6 +21,7 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux.HandleFunc("POST /api/wallet/withdraw", h.withdraw)
 	mux.HandleFunc("GET /api/bets", h.listBets)
 	mux.HandleFunc("POST /api/bets", h.placeBet)
+	mux.HandleFunc("POST /api/bets/{id}/cashout", h.cashOut)
 	mux.HandleFunc("GET /api/withdrawals", h.listWithdrawals)
 
 	// Customer support (registered users open + reply to their own tickets).

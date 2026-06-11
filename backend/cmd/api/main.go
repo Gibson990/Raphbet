@@ -53,6 +53,18 @@ func (r oddsResolver) OddsForSelection(matchID, marketCode string) (float64, boo
 	return 0, false
 }
 
+// MatchState finds a match's live state across the curated leagues (cash-out).
+func (r oddsResolver) MatchState(matchID string) (status string, home, away, elapsed int, ok bool) {
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	for _, lg := range r.leagues {
+		if st, h, a, e, found := r.fs.MatchStateFor(ctx, lg, matchID); found {
+			return st, h, a, e, true
+		}
+	}
+	return "", 0, 0, 0, false
+}
+
 func main() {
 	cfg := config.Load()
 
@@ -156,7 +168,9 @@ func main() {
 	// Authoritative odds: reprice every placed selection server-side so a forged
 	// "odds" field in a bet request can never inflate the payout. The World Cup is
 	// league "1"; the resolver looks selections up on the live market board.
-	bettingService.SetOddsResolver(oddsResolver{fs: footballService, leagues: footballinfra.LeagueIDs()})
+	resolver := oddsResolver{fs: footballService, leagues: footballinfra.LeagueIDs()}
+	bettingService.SetOddsResolver(resolver)
+	bettingService.SetMatchStateResolver(resolver) // enables cash-out pricing
 
 	// Front-end base URL (for provider success/return redirects).
 	frontendBase := "http://localhost:3000"
