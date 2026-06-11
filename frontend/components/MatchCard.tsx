@@ -1,5 +1,6 @@
 import React from 'react';
 import type { Match } from '../types';
+import { useOddsFormat } from '../contexts/OddsFormatContext';
 
 interface MatchCardProps {
   match: Match;
@@ -14,22 +15,25 @@ const OddButton: React.FC<{
   active: boolean;
   disabled: boolean;
   onClick: () => void;
-}> = ({ label, odd, active, disabled, onClick }) => (
-  <button
-    onClick={onClick}
-    disabled={disabled}
-    className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-xl border transition-all active:scale-[0.97] ${
-      active
-        ? 'bg-primary border-primary text-white shadow-sm shadow-primary/30'
-        : 'bg-gray-50 dark:bg-neutral-dark border-gray-200 dark:border-neutral-border hover:border-primary hover:bg-white dark:hover:bg-neutral-dark-card'
-    } disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100`}
-  >
-    <span className={`text-[10px] font-bold uppercase tracking-wide ${active ? 'text-white/75' : 'text-gray-400'}`}>{label}</span>
-    <span className={`font-extrabold text-[15px] tabular-nums leading-none ${active ? 'text-white' : 'text-neutral-dark dark:text-white'}`}>
-      {odd.toFixed(2)}
-    </span>
-  </button>
-);
+}> = ({ label, odd, active, disabled, onClick }) => {
+  const { fmtOdds } = useOddsFormat();
+  return (
+    <button
+      onClick={onClick}
+      disabled={disabled}
+      className={`flex flex-col items-center justify-center gap-0.5 py-2.5 rounded-xl border transition-all active:scale-[0.97] ${
+        active
+          ? 'bg-primary border-primary text-white shadow-sm shadow-primary/30'
+          : 'bg-gray-50 dark:bg-neutral-dark border-gray-200 dark:border-neutral-border hover:border-primary hover:bg-white dark:hover:bg-neutral-dark-card'
+      } disabled:opacity-40 disabled:cursor-not-allowed disabled:active:scale-100`}
+    >
+      <span className={`text-[10px] font-bold uppercase tracking-wide ${active ? 'text-white/75' : 'text-gray-400'}`}>{label}</span>
+      <span className={`font-extrabold text-[15px] tabular-nums leading-none ${active ? 'text-white' : 'text-neutral-dark dark:text-white'}`}>
+        {fmtOdds(odd)}
+      </span>
+    </button>
+  );
+};
 
 const TeamRow: React.FC<{ name: string; logo: string; score?: number; dim?: boolean }> = ({ name, logo, score, dim }) => (
   <div className="flex items-center gap-2.5 min-w-0">

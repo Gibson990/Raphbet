@@ -109,8 +109,8 @@ func (e *GeneratedEngine) MarketsFor(m domain.Match) []domain.Market {
 	for _, line := range markets.OULines {
 		over := overProb(lh+la, line)
 		ouTotal.Outcomes = append(ouTotal.Outcomes,
-			domain.Outcome{Code: markets.OUCode(line, true), Label: markets.OULabel(line, true), Odds: e.price(over)},
-			domain.Outcome{Code: markets.OUCode(line, false), Label: markets.OULabel(line, false), Odds: e.price(1 - over)},
+			domain.Outcome{Code: markets.OUCode(line, true), Label: markets.OULabel(line, true), Odds: e.priceFor(over, marginOU)},
+			domain.Outcome{Code: markets.OUCode(line, false), Label: markets.OULabel(line, false), Odds: e.priceFor(1-over, marginOU)},
 		)
 	}
 	out = append(out, ouTotal)
@@ -132,8 +132,8 @@ func (e *GeneratedEngine) MarketsFor(m domain.Match) []domain.Market {
 		Key:   "BTTS",
 		Label: "Both Teams To Score",
 		Outcomes: []domain.Outcome{
-			{Code: markets.BTTSCode(true), Label: "Yes", Odds: e.price(bttsYes)},
-			{Code: markets.BTTSCode(false), Label: "No", Odds: e.price(1 - bttsYes)},
+			{Code: markets.BTTSCode(true), Label: "Yes", Odds: e.priceFor(bttsYes, marginBTTS)},
+			{Code: markets.BTTSCode(false), Label: "No", Odds: e.priceFor(1-bttsYes, marginBTTS)},
 		},
 	})
 
@@ -166,7 +166,7 @@ func (e *GeneratedEngine) MarketsFor(m domain.Match) []domain.Market {
 		csMarket.Outcomes = append(csMarket.Outcomes, domain.Outcome{
 			Code:  fmt.Sprintf("CS_%d_%d", s.h, s.a),
 			Label: label,
-			Odds:  e.price(s.p),
+			Odds:  e.priceFor(s.p, marginCS),
 		})
 	}
 	out = append(out, csMarket)
@@ -177,8 +177,8 @@ func (e *GeneratedEngine) MarketsFor(m domain.Match) []domain.Market {
 	for _, line := range markets.FHOULines {
 		over := overProb(fhLambda, line)
 		fhMarket.Outcomes = append(fhMarket.Outcomes,
-			domain.Outcome{Code: markets.FHOUCode(line, true), Label: markets.FHOULabel(line, true), Odds: e.price(over)},
-			domain.Outcome{Code: markets.FHOUCode(line, false), Label: markets.FHOULabel(line, false), Odds: e.price(1 - over)},
+			domain.Outcome{Code: markets.FHOUCode(line, true), Label: markets.FHOULabel(line, true), Odds: e.priceFor(over, marginFH)},
+			domain.Outcome{Code: markets.FHOUCode(line, false), Label: markets.FHOULabel(line, false), Odds: e.priceFor(1-over, marginFH)},
 		)
 	}
 	out = append(out, fhMarket)
@@ -191,23 +191,40 @@ func (e *GeneratedEngine) MarketsFor(m domain.Match) []domain.Market {
 		Key:   "HT_1X2",
 		Label: "Half Time Result",
 		Outcomes: []domain.Outcome{
-			{Code: "HT1", Label: m.HomeTeam.Name, Odds: e.price(htH)},
-			{Code: "HTX", Label: "Draw", Odds: e.price(htD)},
-			{Code: "HT2", Label: m.AwayTeam.Name, Odds: e.price(htA)},
+			{Code: "HT1", Label: m.HomeTeam.Name, Odds: e.priceFor(htH, marginHT)},
+			{Code: "HTX", Label: "Draw", Odds: e.priceFor(htD, marginHT)},
+			{Code: "HT2", Label: m.AwayTeam.Name, Odds: e.priceFor(htA, marginHT)},
 		},
 	})
 
 	return out
 }
 
-// price converts a true probability into margin-loaded decimal odds.
-// Formula: decimal_odds = 1 / (p × (1 + margin))
-// At 5% margin: true p=0.50 → odds = 1/(0.50 × 1.05) = 1.90 (not 2.00).
-func (e *GeneratedEngine) price(p float64) float64 {
+// Per-market extra margin on top of the base house margin. Exotic markets carry
+// more vig (like every major book): headline 1X2 stays sharp, while harder-to-
+// price markets (correct score, totals, BTTS) hold more. Tunable here.
+const (
+	marginOU = 0.02 // Over/Under totals
+	marginBTTS = 0.02 // Both teams to score
+	marginCS   = 0.10 // Correct score (exotic)
+	marginFH   = 0.03 // First-half goals
+	marginHT   = 0.03 // Half-time result
+)
+
+// price converts a true probability into margin-loaded decimal odds at the base
+// house margin (used for headline 1X2 / Double Chance).
+// Formula: decimal_odds = 1 / (p × (1 + margin)). At 5%: p=0.50 → 1.90.
+func (e *GeneratedEngine) price(p float64) float64 { return e.priceFor(p, 0) }
+
+// priceFor prices at the base margin plus a market-specific extra.
+func (e *GeneratedEngine) priceFor(p, extra float64) float64 {
 	if p <= 0 {
 		p = 0.001
 	}
-	m := e.Margin()
+	m := e.Margin() + extra
+	if m < 0 {
+		m = 0
+	}
 	o := 1 / (p * (1 + m))
 	// Round to 2 decimal places (standard bookmaker display)
 	o = math.Round(o*100) / 100

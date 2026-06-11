@@ -1,6 +1,7 @@
 import React from 'react';
 import type { Match, Outcome } from '../types';
 import Modal from './common/Modal';
+import { useOddsFormat } from '../contexts/OddsFormatContext';
 
 interface MarketsModalProps {
   match: Match;
@@ -11,6 +12,7 @@ interface MarketsModalProps {
 
 /** Full market board for a match (1X2, Over/Under, BTTS, halves). */
 export const MarketsModal: React.FC<MarketsModalProps> = ({ match, selectedCode, onSelect, onClose }) => {
+  const { fmtOdds } = useOddsFormat();
   const title = `${match.homeTeam.name} vs ${match.awayTeam.name}`;
   return (
     <Modal title={title} onClose={onClose}>
@@ -32,7 +34,7 @@ export const MarketsModal: React.FC<MarketsModalProps> = ({ match, selectedCode,
                     }`}
                   >
                     <span className="truncate text-left font-medium">{o.label}</span>
-                    <span className={`font-extrabold tabular-nums shrink-0 ${active ? 'text-white' : 'text-primary'}`}>{o.odds.toFixed(2)}</span>
+                    <span className={`font-extrabold tabular-nums shrink-0 ${active ? 'text-white' : 'text-primary'}`}>{fmtOdds(o.odds)}</span>
                   </button>
                 );
               })}

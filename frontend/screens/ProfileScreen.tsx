@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useAppOutlet } from '../hooks/useAppOutlet';
 import { useCurrency } from '../contexts/CurrencyContext';
+import { useOddsFormat, type OddsFormat } from '../contexts/OddsFormatContext';
 import { CurrencySelect } from '../components/CurrencySelect';
 import { SunIcon, MoonIcon, CheckCircleIcon, ShieldExclamationIcon, CameraIcon, PencilIcon } from '../components/icons';
 import Modal from '../components/common/Modal';
@@ -13,6 +14,7 @@ const ProfileScreen: React.FC = () => {
   const { format } = useCurrency();
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
+  const { format: oddsFmt, setFormat: setOddsFmt } = useOddsFormat();
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [isTermsOpen, setIsTermsOpen] = useState(false);
@@ -117,6 +119,22 @@ const ProfileScreen: React.FC = () => {
             <button onClick={toggleDarkMode} className={`relative inline-flex items-center h-6 rounded-full w-11 transition-colors ${isDarkMode ? 'bg-primary' : 'bg-gray-300'}`}>
               <span className={`inline-block w-4 h-4 transform bg-white rounded-full transition-transform ${isDarkMode ? 'translate-x-6' : 'translate-x-1'}`} />
             </button>
+          </div>
+
+          <div className="flex justify-between items-center py-3 px-1 border-b border-gray-100 dark:border-neutral-border gap-3">
+            <span className="font-semibold text-sm shrink-0">Odds format</span>
+            <div className="inline-flex bg-gray-100 dark:bg-neutral-dark rounded-lg p-0.5">
+              {([['decimal', '1.90'], ['fractional', '9/10'], ['american', '-111']] as [OddsFormat, string][]).map(([f, ex]) => (
+                <button
+                  key={f}
+                  onClick={() => setOddsFmt(f)}
+                  className={`px-2.5 py-1 text-xs font-bold rounded-md transition-colors capitalize ${oddsFmt === f ? 'bg-white dark:bg-neutral-dark-card text-primary shadow-sm' : 'text-gray-500 dark:text-gray-400'}`}
+                  title={ex}
+                >
+                  {f}
+                </button>
+              ))}
+            </div>
           </div>
 
           <div className="flex justify-between items-center py-3 px-1 border-b border-gray-100 dark:border-neutral-border">

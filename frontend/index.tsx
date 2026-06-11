@@ -4,6 +4,7 @@ import { BrowserRouter } from 'react-router-dom';
 import App from './App';
 import { AuthProvider } from './contexts/AuthContext';
 import { CurrencyProvider } from './contexts/CurrencyContext';
+import { OddsFormatProvider } from './contexts/OddsFormatContext';
 import { ErrorBoundary } from './components/ErrorBoundary';
 
 const rootElement = document.getElementById('root');
@@ -18,7 +19,9 @@ root.render(
       <BrowserRouter>
         <AuthProvider>
           <CurrencyProvider>
-            <App />
+            <OddsFormatProvider>
+              <App />
+            </OddsFormatProvider>
           </CurrencyProvider>
         </AuthProvider>
       </BrowserRouter>
