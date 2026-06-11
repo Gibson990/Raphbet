@@ -21,7 +21,34 @@ var (
 	ErrBadSelection  = errors.New("selection is not available for betting")
 	ErrDuplicateLeg  = errors.New("a match can only appear once on an accumulator")
 	ErrTooManyLegs   = errors.New("too many selections on the accumulator")
+	ErrLiabilityCap  = errors.New("this selection has reached its betting limit")
 )
+
+// outcomeKey identifies a single bettable outcome (match + market code).
+func outcomeKey(s domain.BetSelection) string { return s.MatchID + "|" + s.Market }
+
+// outcomeExposure sums the house's current potential payout per outcome across
+// all pending bets (singles attribute to their outcome; an accumulator's full
+// potential payout is attributed to each of its legs — deliberately
+// conservative, so a market can't be concentrated via accas either).
+func (s *Service) outcomeExposure() (map[string]domain.Money, error) {
+	pending, err := s.bets.ListPending()
+	if err != nil {
+		return nil, err
+	}
+	exp := make(map[string]domain.Money)
+	for _, b := range pending {
+		if b.IsMulti {
+			payout := domain.Money(float64(b.Wager) * b.Multiplier * (1.0 + b.WinBoost))
+			for _, sel := range b.Selections {
+				exp[outcomeKey(sel)] += payout
+			}
+		} else {
+			exp[outcomeKey(b.Selection)] += domain.Money(float64(b.Wager) * b.Selection.Odds)
+		}
+	}
+	return exp, nil
+}
 
 // maxAccaLegs caps the number of legs on an accumulator. Bounds combinatorial
 // payout risk and matches the practical limits used by mainstream bookmakers.
@@ -39,6 +66,9 @@ type OddsResolver interface {
 // Limits are the configurable risk limits (USD cents).
 type Limits struct {
 	MinBet, MaxBet, MinWithdrawal, MaxWithdrawal domain.Money
+	// MaxLiability caps total potential payout the house will hold on a single
+	// match outcome (0 = unlimited).
+	MaxLiability domain.Money
 }
 
 // Service coordinates the wallet, bet and withdrawal repositories.
@@ -288,6 +318,23 @@ func (s *Service) PlaceBet(deviceID string, items []PlaceItem) ([]*domain.Bet, *
 		items[i].Selection = sel
 		total += items[i].Wager
 	}
+
+	// Per-outcome liability cap: reject if a bet would push the house's potential
+	// payout on a single outcome past the configured limit.
+	if lim.MaxLiability > 0 {
+		exp, err := s.outcomeExposure()
+		if err != nil {
+			return nil, nil, err
+		}
+		for i := range items {
+			k := outcomeKey(items[i].Selection)
+			exp[k] += domain.Money(float64(items[i].Wager) * items[i].Selection.Odds)
+			if exp[k] > lim.MaxLiability {
+				return nil, nil, ErrLiabilityCap
+			}
+		}
+	}
+
 	w, err := s.Wallet(deviceID)
 	if err != nil {
 		return nil, nil, err
@@ -402,6 +449,21 @@ func (s *Service) PlaceMultiBet(deviceID string, selections []domain.BetSelectio
 	multiplier = math.Round(multiplier*100) / 100
 
 	winBoost := CalculateWinBoost(len(selections))
+
+	// Per-outcome liability cap (conservatively attributes the full acca payout
+	// to each leg's outcome).
+	if lim.MaxLiability > 0 {
+		payout := domain.Money(float64(wager) * multiplier * (1.0 + winBoost))
+		exp, err := s.outcomeExposure()
+		if err != nil {
+			return nil, nil, err
+		}
+		for _, sel := range selections {
+			if exp[outcomeKey(sel)]+payout > lim.MaxLiability {
+				return nil, nil, ErrLiabilityCap
+			}
+		}
+	}
 
 	now := time.Now()
 	// Backwards compatibility selection: use the first selection

@@ -183,6 +183,7 @@ func (h *Handlers) adminGetConfig(w http.ResponseWriter, r *http.Request) {
 		"maxBet":        l.MaxBet,
 		"minWithdrawal": l.MinWithdrawal,
 		"maxWithdrawal": l.MaxWithdrawal,
+		"maxLiability":  l.MaxLiability,
 	})
 }
 
@@ -196,6 +197,7 @@ func (h *Handlers) adminSetConfig(w http.ResponseWriter, r *http.Request) {
 		MaxBet        *int64   `json:"maxBet"`
 		MinWithdrawal *int64   `json:"minWithdrawal"`
 		MaxWithdrawal *int64   `json:"maxWithdrawal"`
+		MaxLiability  *int64   `json:"maxLiability"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": "invalid body"})
@@ -219,6 +221,9 @@ func (h *Handlers) adminSetConfig(w http.ResponseWriter, r *http.Request) {
 	if req.MaxWithdrawal != nil {
 		l.MaxWithdrawal = *req.MaxWithdrawal
 	}
+	if req.MaxLiability != nil {
+		l.MaxLiability = *req.MaxLiability
+	}
 	h.betting.SetLimits(l)
 
 	// Persist the updated configuration to database repository
@@ -228,6 +233,7 @@ func (h *Handlers) adminSetConfig(w http.ResponseWriter, r *http.Request) {
 		MaxBet:        l.MaxBet,
 		MinWithdrawal: l.MinWithdrawal,
 		MaxWithdrawal: l.MaxWithdrawal,
+		MaxLiability:  l.MaxLiability,
 	}
 	if err := h.configRepo.SaveConfig(updatedCfg); err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to persist bookmaker config", err)
@@ -241,6 +247,7 @@ func (h *Handlers) adminSetConfig(w http.ResponseWriter, r *http.Request) {
 		"maxBet":        updatedCfg.MaxBet,
 		"minWithdrawal": updatedCfg.MinWithdrawal,
 		"maxWithdrawal": updatedCfg.MaxWithdrawal,
+		"maxLiability":  updatedCfg.MaxLiability,
 	})
 }
 

@@ -310,6 +310,7 @@ const AdminScreen: React.FC = () => {
   const [maxBetInput, setMaxBetInput] = useState('');
   const [minWdInput, setMinWdInput] = useState('');
   const [maxWdInput, setMaxWdInput] = useState('');
+  const [maxLiabInput, setMaxLiabInput] = useState('');
   const [configBusy, setConfigBusy] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error' = 'success') => {
@@ -338,6 +339,7 @@ const AdminScreen: React.FC = () => {
       setMaxBetInput((cfg.maxBet / 100).toString());
       setMinWdInput((cfg.minWithdrawal / 100).toString());
       setMaxWdInput((cfg.maxWithdrawal / 100).toString());
+      setMaxLiabInput(((cfg.maxLiability ?? 0) / 100).toString());
     } catch (err: any) {
       showToast('Failed to load admin data. Backend may be offline.', 'error');
     }
@@ -479,6 +481,7 @@ const AdminScreen: React.FC = () => {
         maxBet: Math.round(parseFloat(maxBetInput) * 100),
         minWithdrawal: Math.round(parseFloat(minWdInput) * 100),
         maxWithdrawal: Math.round(parseFloat(maxWdInput) * 100),
+        maxLiability: Math.round(parseFloat(maxLiabInput) * 100),
       });
       setConfig(updated);
       showToast('Configuration saved.');
@@ -1280,6 +1283,7 @@ const AdminScreen: React.FC = () => {
                   { label: 'Max Bet (USD)', val: maxBetInput, set: setMaxBetInput },
                   { label: 'Min Withdrawal (USD)', val: minWdInput, set: setMinWdInput },
                   { label: 'Max Withdrawal (USD)', val: maxWdInput, set: setMaxWdInput },
+                  { label: 'Max Liability / outcome (USD, 0 = off)', val: maxLiabInput, set: setMaxLiabInput },
                 ].map(({ label, val, set }) => (
                   <div key={label}>
                     <label className="block text-[10px] font-semibold uppercase text-gray-400 mb-1.5">{label}</label>

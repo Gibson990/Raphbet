@@ -52,6 +52,7 @@ type Config struct {
 	MaxBet        int64
 	MinWithdrawal int64
 	MaxWithdrawal int64
+	MaxLiability  int64 // max potential payout held on one outcome (0 = unlimited)
 
 	// SettlementInterval is how often pending bets are settled from results.
 	SettlementInterval time.Duration
@@ -116,6 +117,7 @@ func Load() Config {
 		MaxBet:             getEnvInt64("MAX_BET", 100000),         // $1,000
 		MinWithdrawal:      getEnvInt64("MIN_WITHDRAWAL", 500),     // $5
 		MaxWithdrawal:      getEnvInt64("MAX_WITHDRAWAL", 1000000), // $10,000
+		MaxLiability:       getEnvInt64("MAX_LIABILITY", 200000),   // $2,000 per outcome
 		SettlementInterval: getEnvDuration("SETTLEMENT_INTERVAL", 30*time.Second),
 
 		MongoURI: strings.TrimSpace(os.Getenv("MONGO_URI")),

@@ -69,6 +69,7 @@ export interface AdminConfig {
   maxBet: number;
   minWithdrawal: number;
   maxWithdrawal: number;
+  maxLiability: number;
 }
 
 export interface WalletTransaction {

@@ -112,6 +112,7 @@ func main() {
 	maxBet := cfg.MaxBet
 	minWithdrawal := cfg.MinWithdrawal
 	maxWithdrawal := cfg.MaxWithdrawal
+	maxLiability := cfg.MaxLiability
 
 	dbCfg, err := configRepo.GetConfig()
 	if err != nil {
@@ -124,6 +125,9 @@ func main() {
 		maxBet = dbCfg.MaxBet
 		minWithdrawal = dbCfg.MinWithdrawal
 		maxWithdrawal = dbCfg.MaxWithdrawal
+		if dbCfg.MaxLiability > 0 { // older configs predate this field; keep the env default
+			maxLiability = dbCfg.MaxLiability
+		}
 	} else {
 		log.Printf("seeding database with initial bookmaker configuration from environment")
 		initialCfg := &domain.BookmakerConfig{
@@ -132,6 +136,7 @@ func main() {
 			MaxBet:        maxBet,
 			MinWithdrawal: minWithdrawal,
 			MaxWithdrawal: maxWithdrawal,
+			MaxLiability:  maxLiability,
 		}
 		if err := configRepo.SaveConfig(initialCfg); err != nil {
 			log.Printf("failed to seed initial configuration in database: %v", err)
@@ -146,6 +151,7 @@ func main() {
 		MaxBet:        maxBet,
 		MinWithdrawal: minWithdrawal,
 		MaxWithdrawal: maxWithdrawal,
+		MaxLiability:  maxLiability,
 	})
 	// Authoritative odds: reprice every placed selection server-side so a forged
 	// "odds" field in a bet request can never inflate the payout. The World Cup is

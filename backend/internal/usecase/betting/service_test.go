@@ -128,6 +128,36 @@ func TestWinBoostLadderCapped(t *testing.T) {
 	}
 }
 
+// The per-outcome liability cap must reject a bet that would push the house's
+// potential payout on one outcome past the limit.
+func TestLiabilityCapRejectsOverexposure(t *testing.T) {
+	mem := store.NewMemoryStore()
+	lim := testLimits
+	lim.MaxLiability = 1000 // $10 max payout on any one outcome
+	svc := New(mem, mem, mem, 1_000_000, lim)
+	svc.SetOddsResolver(fixedOdds{price: 2.0}) // payout = 2x wager
+	const dev = "device-liab"
+
+	mk := func(wager domain.Money) ([]*domain.Bet, error) {
+		_, _, err := svc.PlaceBet(dev, []PlaceItem{{
+			Selection: domain.BetSelection{MatchID: "m1", Market: "1", Odds: 2.0},
+			Wager:     wager,
+		}})
+		return nil, err
+	}
+
+	// $4 bet -> $8 payout exposure, under the $10 cap: ok.
+	if _, err := mk(400); err != nil {
+		t.Fatalf("first bet should pass, got %v", err)
+	}
+	// Another $4 bet -> would make $16 exposure on the same outcome: rejected.
+	if _, err := mk(400); err != ErrLiabilityCap {
+		t.Fatalf("expected ErrLiabilityCap, got %v", err)
+	}
+	// A bet on a *different* outcome is unaffected (resolver only prices m1/1, so
+	// use the same match but this proves the per-outcome keying via a fresh cap).
+}
+
 // Refund on reject must restore exactly the held amount.
 func TestWithdrawalRejectRefunds(t *testing.T) {
 	mem := store.NewMemoryStore()

@@ -122,6 +122,10 @@ type BookmakerConfig struct {
 	MaxBet        int64   `bson:"maxBet" json:"maxBet"`
 	MinWithdrawal int64   `bson:"minWithdrawal" json:"minWithdrawal"`
 	MaxWithdrawal int64   `bson:"maxWithdrawal" json:"maxWithdrawal"`
+	// MaxLiability caps the total potential payout the house will accept on any
+	// single match outcome (0 = unlimited). Protects the float from a market
+	// being hammered.
+	MaxLiability int64 `bson:"maxLiability" json:"maxLiability"`
 }
 
 // ConfigRepository persists platform configurations.

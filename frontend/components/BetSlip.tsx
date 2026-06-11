@@ -53,6 +53,20 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWag
   const needsAuth = !isLoggedIn || !isVerified;
   const ctaLabel = !isLoggedIn ? 'Log in to bet' : !isVerified ? 'Verify to bet' : insufficient ? 'Top up to bet' : 'Place Bet';
 
+  // Quick-stake chips: set the accumulator stake, or set every single's stake.
+  const quickStakes = [500, 1000, 2500]; // $5 / $10 / $25 (USD cents)
+  const setStake = (cents: number) => {
+    if (isAccumulator) setAccWager(cents);
+    else bets.forEach((b) => onWagerChange(b.selection.matchId, cents));
+  };
+  const setMaxStake = () => {
+    if (isAccumulator) setAccWager(Math.min(balance, limits.maxBet));
+    else {
+      const per = bets.length ? Math.min(limits.maxBet, Math.floor(balance / bets.length)) : 0;
+      bets.forEach((b) => onWagerChange(b.selection.matchId, per));
+    }
+  };
+
   if (bets.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center text-center py-12 px-6">
@@ -159,6 +173,25 @@ const BetSlipContent: React.FC<BetSlipProps> = ({ bets, balance, onRemove, onWag
           </div>
         </div>
       )}
+
+      {/* Quick-stake chips */}
+      <div className="mt-3 grid grid-cols-4 gap-2">
+        {quickStakes.map((c) => (
+          <button
+            key={c}
+            onClick={() => setStake(c)}
+            className="py-1.5 text-xs font-bold rounded-lg bg-gray-100 dark:bg-neutral-dark text-gray-600 dark:text-gray-300 hover:bg-primary hover:text-white active:scale-95 transition-all"
+          >
+            ${c / 100}
+          </button>
+        ))}
+        <button
+          onClick={setMaxStake}
+          className="py-1.5 text-xs font-bold rounded-lg bg-gray-100 dark:bg-neutral-dark text-gray-600 dark:text-gray-300 hover:bg-primary hover:text-white active:scale-95 transition-all"
+        >
+          Max
+        </button>
+      </div>
 
       <div className="mt-4 pt-3 border-t border-gray-200 dark:border-neutral-border space-y-1.5">
         {isAccumulator && winBoostPercent > 0 && (

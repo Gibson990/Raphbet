@@ -46,7 +46,7 @@ func bettingError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, betting.ErrInsufficient):
 		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "insufficient balance"})
-	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending), errors.Is(err, betting.ErrStakeRange), errors.Is(err, betting.ErrWithdrawalRange), errors.Is(err, betting.ErrBadSelection), errors.Is(err, betting.ErrDuplicateLeg), errors.Is(err, betting.ErrTooManyLegs):
+	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending), errors.Is(err, betting.ErrStakeRange), errors.Is(err, betting.ErrWithdrawalRange), errors.Is(err, betting.ErrBadSelection), errors.Is(err, betting.ErrDuplicateLeg), errors.Is(err, betting.ErrTooManyLegs), errors.Is(err, betting.ErrLiabilityCap):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
 	default:
 		writeError(w, http.StatusInternalServerError, "betting operation failed", err)
