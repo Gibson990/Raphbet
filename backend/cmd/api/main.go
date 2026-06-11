@@ -208,6 +208,7 @@ func main() {
 	worker := settlement.New(bets, results, bettingService, cfg.SettlementInterval)
 
 	handlers := httpdelivery.NewHandlers(footballService, bettingService, paymentService, kycService, adminService, supportService, oddsEngine, cfg.AdminKey, cfg.DiditWebhookSecret, cfg.NowPaymentsIPNSecret, configRepo)
+	handlers.SetKycSandbox(!cfg.HasDidit()) // sandbox auto-approve only when real KYC is off
 	if cfg.FirebaseProjectID != "" {
 		handlers.SetAuth(authinfra.NewFirebaseVerifier(cfg.FirebaseProjectID), cfg.AdminEmails)
 		log.Printf("auth: Firebase token verification (project %q, %d admin email(s))", cfg.FirebaseProjectID, len(cfg.AdminEmails))

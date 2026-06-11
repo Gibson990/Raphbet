@@ -40,7 +40,12 @@ type Handlers struct {
 	auth                 TokenVerifier   // nil until Firebase is configured
 	adminEmails          map[string]bool // admin role allow-list
 	configRepo           domain.ConfigRepository
+	kycSandbox           bool // true only when real KYC (Didit) is NOT configured
 }
+
+// SetKycSandbox enables the sandbox auto-approve KYC endpoint. It must be off in
+// production (real Didit), so that endpoint can't be probed.
+func (h *Handlers) SetKycSandbox(enabled bool) { h.kycSandbox = enabled }
 
 // NewHandlers wires the handlers to their use case services.
 func NewHandlers(football FootballService, betting BettingService, payments PaymentsService, kyc KycService, admin AdminService, support SupportService, oddsEngine *odds.GeneratedEngine, adminKey, kycWebhookSecret, nowpaymentsIPNSecret string, configRepo domain.ConfigRepository) *Handlers {

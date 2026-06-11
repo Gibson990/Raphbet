@@ -55,6 +55,11 @@ func (s *Service) outcomeExposure() (map[string]domain.Money, error) {
 // payout risk and matches the practical limits used by mainstream bookmakers.
 const maxAccaLegs = 20
 
+// maxMultiplier caps an accumulator's combined odds so the potential payout
+// (wager × multiplier × (1+boost)) can never overflow int64 cents. 100,000× is
+// already astronomically generous.
+const maxMultiplier = 100000.0
+
 // OddsResolver returns the canonical, server-side price for a market outcome on
 // a match. Implemented by the football use case; nil in tests (which then trust
 // the supplied odds). When set, the placement path always overwrites the
@@ -455,8 +460,11 @@ func (s *Service) PlaceMultiBet(deviceID string, selections []domain.BetSelectio
 	for _, sel := range selections {
 		multiplier *= sel.Odds
 	}
-	// Round multiplier to 2 decimal places
+	// Round to 2 dp and cap so payouts can't overflow.
 	multiplier = math.Round(multiplier*100) / 100
+	if multiplier > maxMultiplier {
+		multiplier = maxMultiplier
+	}
 
 	winBoost := CalculateWinBoost(len(selections))
 

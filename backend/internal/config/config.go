@@ -123,7 +123,9 @@ func Load() Config {
 		MongoURI: strings.TrimSpace(os.Getenv("MONGO_URI")),
 		MongoDB:  getEnv("MONGO_DB", "raphbet"),
 
-		AdminKey: getEnv("ADMIN_KEY", "raphbet-admin"),
+		// Empty by default: the shared-key admin fallback is disabled unless you set
+	// a strong ADMIN_KEY. Admin access is primarily the Firebase email allow-list.
+	AdminKey: getEnv("ADMIN_KEY", ""),
 
 		FirebaseProjectID: strings.TrimSpace(os.Getenv("FIREBASE_PROJECT_ID")),
 		AdminEmails:       splitCSV(getEnv("ADMIN_EMAILS", "")),

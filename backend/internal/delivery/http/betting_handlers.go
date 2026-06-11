@@ -55,6 +55,22 @@ func bettingError(w http.ResponseWriter, err error) {
 	}
 }
 
+// requireVerified blocks the request unless the identity is KYC-verified. Fails
+// closed: a KYC lookup error blocks too, so an unverified user can never slip
+// through during a backend hiccup.
+func (h *Handlers) requireVerified(w http.ResponseWriter, id string) bool {
+	verified, err := h.kyc.Status(id)
+	if err != nil {
+		writeError(w, http.StatusServiceUnavailable, "could not verify identity", err)
+		return false
+	}
+	if !verified {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "identity verification required"})
+		return false
+	}
+	return true
+}
+
 func (h *Handlers) getWallet(w http.ResponseWriter, r *http.Request) {
 	id, ok := h.identity(w, r)
 	if !ok {
@@ -104,8 +120,7 @@ func (h *Handlers) withdraw(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	if verified, err := h.kyc.Status(id); err == nil && !verified {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "identity verification required"})
+	if !h.requireVerified(w, id) {
 		return
 	}
 	var req struct {
@@ -153,9 +168,8 @@ func (h *Handlers) placeBet(w http.ResponseWriter, r *http.Request) {
 	if !ok {
 		return
 	}
-	// Server-side KYC gate: never trust the client to enforce verification.
-	if verified, err := h.kyc.Status(id); err == nil && !verified {
-		writeJSON(w, http.StatusForbidden, map[string]string{"error": "identity verification required"})
+	// Server-side KYC gate (fail-closed): never trust the client to enforce it.
+	if !h.requireVerified(w, id) {
 		return
 	}
 	var req placeBetRequest

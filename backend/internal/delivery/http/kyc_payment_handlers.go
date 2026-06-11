@@ -148,6 +148,10 @@ func (h *Handlers) kycWebhook(w http.ResponseWriter, r *http.Request) {
 
 // kycSandboxApprove allows the frontend mock verification screen to approve a sandbox session.
 func (h *Handlers) kycSandboxApprove(w http.ResponseWriter, r *http.Request) {
+	if !h.kycSandbox {
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": "sandbox approval is disabled"})
+		return
+	}
 	var req struct {
 		SessionID string `json:"session_id"`
 	}

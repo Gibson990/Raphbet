@@ -1,6 +1,7 @@
 package http
 
 import (
+	"crypto/subtle"
 	"encoding/json"
 	"net/http"
 	"strings"
@@ -32,7 +33,7 @@ func (h *Handlers) requireAdmin(w http.ResponseWriter, r *http.Request) bool {
 			}
 		}
 	}
-	if h.adminKey != "" && r.Header.Get("X-Admin-Key") == h.adminKey {
+	if h.adminKey != "" && subtle.ConstantTimeCompare([]byte(r.Header.Get("X-Admin-Key")), []byte(h.adminKey)) == 1 {
 		return true
 	}
 	writeJSON(w, http.StatusUnauthorized, map[string]string{"error": "admin authorization required"})
