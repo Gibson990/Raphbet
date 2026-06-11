@@ -42,7 +42,7 @@ const LegalScreen: React.FC<{ doc: LegalDoc }> = ({ doc }) => {
   const navigate = useNavigate();
   const { title, body } = DOCS[doc];
   return (
-    <div className="min-h-screen bg-neutral-light-gray dark:bg-neutral-dark">
+    <div className="min-h-screen bg-neutral-light-gray dark:bg-neutral-dark text-neutral-dark dark:text-neutral-light-gray">
       <header className="bg-white dark:bg-neutral-dark-gray border-b border-gray-200 dark:border-neutral-border">
         <div className="max-w-3xl mx-auto px-4 h-16 flex items-center justify-between">
           <button onClick={() => navigate(-1)} className="text-sm font-semibold text-gray-500 hover:text-primary">← Back</button>
@@ -50,7 +50,7 @@ const LegalScreen: React.FC<{ doc: LegalDoc }> = ({ doc }) => {
         </div>
       </header>
       <main className="max-w-3xl mx-auto px-4 py-8">
-        <h1 className="text-2xl sm:text-3xl font-extrabold mb-5">{title}</h1>
+        <h1 className="text-2xl sm:text-3xl font-extrabold mb-5 text-neutral-dark dark:text-white">{title}</h1>
         <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-5 sm:p-7">
           {body}
         </div>
