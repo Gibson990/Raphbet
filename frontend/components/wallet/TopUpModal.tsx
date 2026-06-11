@@ -1,6 +1,9 @@
 import React, { useState } from 'react';
 import Modal from '../common/Modal';
 import { ToastMessage } from '../../App';
+import { useCurrency } from '../../contexts/CurrencyContext';
+
+const MIN_DEPOSIT_CENTS = 100; // NOWPayments invoice minimum (~$1)
 
 interface TopUpModalProps {
     onClose: () => void;
@@ -12,6 +15,10 @@ const TopUpModal: React.FC<TopUpModalProps> = ({ onClose, onTopUp, addToast }) =
     const [amount, setAmount] = useState(10); // USD dollars
     const [submitting, setSubmitting] = useState(false);
     const quickAmounts = [5, 10, 25, 50];
+    const { format, code } = useCurrency();
+    const cents = Math.round(amount * 100);
+    const showConverted = code !== 'USD' && code !== 'USDT';
+    const belowMin = cents > 0 && cents < MIN_DEPOSIT_CENTS;
 
     const handleSubmit = async () => {
         setSubmitting(true);
@@ -47,6 +54,11 @@ const TopUpModal: React.FC<TopUpModalProps> = ({ onClose, onTopUp, addToast }) =
                             </button>
                         ))}
                     </div>
+                    <p className="text-xs text-gray-400 mt-2">
+                        Minimum deposit $1.00 · no maximum.
+                        {showConverted && cents > 0 && <> You'll deposit ≈ <span className="font-semibold">{format(cents)}</span>.</>}
+                    </p>
+                    {belowMin && <p className="text-xs text-danger mt-1">Minimum deposit is $1.00.</p>}
                 </div>
 
                 <div className="flex items-center gap-3 rounded-xl border border-gray-200 dark:border-neutral-border p-3">
@@ -59,7 +71,7 @@ const TopUpModal: React.FC<TopUpModalProps> = ({ onClose, onTopUp, addToast }) =
 
                 <button
                     onClick={handleSubmit}
-                    disabled={amount <= 0 || submitting}
+                    disabled={amount <= 0 || belowMin || submitting}
                     className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-dark transition-colors disabled:bg-gray-400"
                 >
                     {submitting ? 'Opening checkout…' : 'Continue to checkout'}

@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import Modal from '../common/Modal';
 import { ResultModal } from '../common/ResultModal';
 import { ToastMessage } from '../../App';
+import { useCurrency } from '../../contexts/CurrencyContext';
 import { fetchLimits, cachedLimits, usd, type AppLimits } from '../../services/config';
 
 interface WithdrawModalProps {
@@ -17,6 +18,8 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
     const [submitting, setSubmitting] = useState(false);
     const [done, setDone] = useState<number | null>(null); // cents, set on success
     const [limits, setLimits] = useState<AppLimits>(cachedLimits());
+    const { format, code } = useCurrency();
+    const showConverted = code !== 'USD' && code !== 'USDT';
     useEffect(() => { fetchLimits().then(setLimits); }, []);
 
     const cents = Math.round(amount * 100);
@@ -69,6 +72,9 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
                         placeholder="0.00"
                         className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-border rounded-md focus:ring-primary focus:border-primary bg-transparent"
                     />
+                    {showConverted && cents > 0 && (
+                        <p className="text-xs text-gray-400 mt-1">≈ <span className="font-semibold">{format(cents)}</span> in {code}</p>
+                    )}
                 </div>
                 <div>
                     <label className="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1">USDT address (TRC-20)</label>
