@@ -87,8 +87,15 @@ func New(wallets domain.WalletRepository, bets domain.BetRepository, kyc KycChec
 	return &Service{wallets: wallets, bets: bets, kyc: kyc}
 }
 
-// Stats computes the headline KPIs from wallets + bets.
-func (s *Service) Stats() (Stats, error) {
+// Stats computes the headline KPIs from wallets + bets. days controls the
+// length of the daily trend window (clamped to 7–90).
+func (s *Service) Stats(days int) (Stats, error) {
+	if days < 7 {
+		days = 7
+	}
+	if days > 90 {
+		days = 90
+	}
 	wallets, err := s.wallets.AllWallets()
 	if err != nil {
 		return Stats{}, err
@@ -109,7 +116,7 @@ func (s *Service) Stats() (Stats, error) {
 	st := Stats{}
 	dailyMap := make(map[string]*DailyStat)
 	now := time.Now()
-	for i := 0; i < 7; i++ {
+	for i := 0; i < days; i++ {
 		dStr := now.AddDate(0, 0, -i).Format("2006-01-02")
 		dailyMap[dStr] = &DailyStat{Date: dStr}
 	}
@@ -155,8 +162,8 @@ func (s *Service) Stats() (Stats, error) {
 	}
 	st.GGR = st.TotalStaked - st.TotalPayouts
 
-	st.Daily = make([]DailyStat, 0, 7)
-	for i := 6; i >= 0; i-- {
+	st.Daily = make([]DailyStat, 0, days)
+	for i := days - 1; i >= 0; i-- {
 		dStr := now.AddDate(0, 0, -i).Format("2006-01-02")
 		if ds, ok := dailyMap[dStr]; ok {
 			st.Daily = append(st.Daily, *ds)

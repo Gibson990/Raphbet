@@ -112,7 +112,7 @@ async function adminPost<T>(path: string, key: string, body?: any): Promise<T> {
 
 // ─── API calls ────────────────────────────────────────────────────────────────
 
-export const fetchAdminStats = (key: string) => adminGet<AdminStats>('/api/admin/stats', key);
+export const fetchAdminStats = (key: string, days = 7) => adminGet<AdminStats>(`/api/admin/stats?days=${days}`, key);
 export const fetchAdminUsers = (key: string) => adminGet<AdminUser[]>('/api/admin/users', key);
 export const fetchAdminBets = (key: string) => adminGet<AdminBet[]>('/api/admin/bets', key);
 export const fetchAdminWithdrawals = (key: string) => adminGet<AdminWithdrawal[]>('/api/admin/withdrawals', key);

@@ -4,6 +4,7 @@ import (
 	"crypto/subtle"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
 	"github.com/Gibson990/Raphbet/backend/internal/domain"
@@ -12,7 +13,7 @@ import (
 
 // AdminService is the use case port for the admin dashboard.
 type AdminService interface {
-	Stats() (admin.Stats, error)
+	Stats(days int) (admin.Stats, error)
 	Users() ([]admin.UserRow, error)
 	Bets() ([]admin.BetRow, error)
 }
@@ -44,7 +45,11 @@ func (h *Handlers) adminStats(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAdmin(w, r) {
 		return
 	}
-	stats, err := h.admin.Stats()
+	days := 7
+	if d, err := strconv.Atoi(r.URL.Query().Get("days")); err == nil && d > 0 {
+		days = d
+	}
+	stats, err := h.admin.Stats(days)
 	if err != nil {
 		writeError(w, http.StatusInternalServerError, "failed to load stats", err)
 		return

@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { BrandLogo } from '../components/layout/BrandLogo';
 import { useAuth } from '../contexts/AuthContext';
@@ -32,7 +32,13 @@ import {
   ArrowDown,
   ArrowUp,
   Zap,
-  Clock
+  Clock,
+  Ticket,
+  MessageSquare,
+  History,
+  ArrowUpCircle,
+  ArrowDownCircle,
+  Scale
 } from 'lucide-react';
 import {
   fetchAdminStats, fetchAdminUsers, fetchAdminBets, fetchAdminWithdrawals,
@@ -95,16 +101,92 @@ const StatusBadge: React.FC<{ status: AdminBet['status'] }> = ({ status }) => {
   return <span className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${map[status]}`}>{status}</span>;
 };
 
-// ─── Revenue Chart (redesigned) ───────────────────────────────────────────────
-const RevenueChart: React.FC<{ daily: DailyStat[] }> = ({ daily }) => {
+// ─── Revenue Chart ────────────────────────────────────────────────────────────
+const CHART_RANGES = [7, 14, 30, 90] as const;
+type ChartRange = (typeof CHART_RANGES)[number];
+type SeriesKey = 'wagers' | 'payouts' | 'ggr';
+
+const RevenueChart: React.FC<{
+  daily: DailyStat[];
+  range: ChartRange;
+  onRangeChange: (d: ChartRange) => void;
+  rangeLoading?: boolean;
+}> = ({ daily, range, onRangeChange, rangeLoading }) => {
   const { format: formatVal } = useCurrency();
   const [hoveredIdx, setHoveredIdx] = useState<number | null>(null);
+  const [hiddenSeries, setHiddenSeries] = useState<Set<SeriesKey>>(new Set());
+
+  const lines = [
+    { key: 'wagers' as const, color: '#FF6B35', label: 'Wagers' },
+    { key: 'payouts' as const, color: '#8B5CF6', label: 'Payouts' },
+    { key: 'ggr' as const, color: '#10B981', label: 'GGR' },
+  ];
+  const visibleLines = lines.filter(l => !hiddenSeries.has(l.key));
+
+  const toggleSeries = (key: SeriesKey) =>
+    setHiddenSeries(prev => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else if (next.size < lines.length - 1) next.add(key); // keep at least one visible
+      return next;
+    });
+
+  const rangeChips = (
+    <div className="flex items-center gap-1 bg-gray-100 dark:bg-neutral-dark rounded-lg p-0.5">
+      {CHART_RANGES.map(d => (
+        <button
+          key={d}
+          onClick={() => onRangeChange(d)}
+          className={`px-2.5 py-1 text-[10px] font-bold rounded-md transition-colors ${
+            range === d ? 'bg-white dark:bg-neutral-dark-card text-primary shadow-sm' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+          }`}
+        >
+          {d}D
+        </button>
+      ))}
+    </div>
+  );
+
+  const header = (
+    <div className="px-6 pt-5 pb-3 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
+      <div className="flex items-center gap-3">
+        <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
+          <Activity className="w-5 h-5 text-primary" />
+        </div>
+        <div>
+          <h3 className="text-sm font-bold dark:text-white tracking-tight">Revenue & Stake Trends</h3>
+          <p className="text-[11px] text-gray-400 mt-0.5">Last {range} days{rangeLoading ? ' · loading…' : ''}</p>
+        </div>
+      </div>
+      <div className="flex flex-wrap items-center gap-4">
+        <div className="flex gap-3.5">
+          {lines.map(l => {
+            const off = hiddenSeries.has(l.key);
+            return (
+              <button
+                key={l.key}
+                onClick={() => toggleSeries(l.key)}
+                title={off ? `Show ${l.label}` : `Hide ${l.label}`}
+                className={`flex items-center gap-1.5 text-[10px] font-bold uppercase tracking-wider transition-opacity ${off ? 'opacity-35 line-through' : ''} text-gray-500 dark:text-gray-400 hover:opacity-100`}
+              >
+                <span className="w-3 h-[3px] rounded-full" style={{ background: l.color }} />
+                {l.label}
+              </button>
+            );
+          })}
+        </div>
+        {rangeChips}
+      </div>
+    </div>
+  );
 
   if (!daily || daily.length === 0) return (
-    <div className="w-full bg-white dark:bg-neutral-dark-gray border border-gray-100 dark:border-neutral-border/40 rounded-2xl p-8 flex flex-col items-center justify-center h-56 gap-3">
-      <BarChart3 className="w-10 h-10 text-gray-200 dark:text-neutral-border" />
-      <p className="text-xs text-gray-400 font-medium">No betting activity in the last 7 days yet.</p>
-      <p className="text-[10px] text-gray-300 dark:text-gray-600">Place some bets to see trends appear here.</p>
+    <div className="w-full bg-white dark:bg-neutral-dark-gray border border-gray-100 dark:border-neutral-border/40 rounded-2xl overflow-hidden">
+      {header}
+      <div className="p-8 flex flex-col items-center justify-center h-44 gap-3">
+        <BarChart3 className="w-10 h-10 text-gray-200 dark:text-neutral-border" />
+        <p className="text-xs text-gray-400 font-medium">No betting activity in this period yet.</p>
+      </div>
     </div>
   );
 
@@ -116,14 +198,26 @@ const RevenueChart: React.FC<{ daily: DailyStat[] }> = ({ daily }) => {
   const padB = 40;
   const chartW = width - padL - padR;
   const chartH = height - padT - padB;
+  const n = daily.length;
 
-  const maxVal = Math.max(...daily.map(d => Math.max(d.wagers, d.payouts, Math.abs(d.ggr), 1))) * 1.15;
+  // With long ranges every point/label can't be drawn; thin them out so the
+  // chart stays legible no matter how much data comes back.
+  const dense = n > 16;
+  const labelStep = Math.max(1, Math.ceil(n / 8));
+  const hitW = chartW / Math.max(n - 1, 1);
 
-  const getX = (i: number) => padL + (i * chartW) / Math.max(daily.length - 1, 1);
+  const maxVal = Math.max(...daily.map(d => Math.max(
+    hiddenSeries.has('wagers') ? 0 : d.wagers,
+    hiddenSeries.has('payouts') ? 0 : d.payouts,
+    hiddenSeries.has('ggr') ? 0 : Math.abs(d.ggr),
+    1,
+  ))) * 1.1;
+
+  const getX = (i: number) => padL + (i * chartW) / Math.max(n - 1, 1);
   const getY = (val: number) => padT + chartH - (val * chartH) / maxVal;
 
   // Smooth cubic-bezier path generator
-  const getSmoothPath = (key: 'wagers' | 'payouts' | 'ggr') => {
+  const getSmoothPath = (key: SeriesKey) => {
     const pts = daily.map((d, i) => ({ x: getX(i), y: getY(Math.max(d[key], 0)) }));
     if (pts.length < 2) return `M ${pts[0].x} ${pts[0].y}`;
     let path = `M ${pts[0].x} ${pts[0].y}`;
@@ -134,56 +228,29 @@ const RevenueChart: React.FC<{ daily: DailyStat[] }> = ({ daily }) => {
     return path;
   };
 
-  const getAreaPath = (key: 'wagers' | 'payouts' | 'ggr') => {
-    const linePath = getSmoothPath(key);
-    const lastPt = daily.length - 1;
-    return `${linePath} L ${getX(lastPt)} ${padT + chartH} L ${getX(0)} ${padT + chartH} Z`;
-  };
+  const getAreaPath = (key: SeriesKey) =>
+    `${getSmoothPath(key)} L ${getX(n - 1)} ${padT + chartH} L ${getX(0)} ${padT + chartH} Z`;
 
-  const yTicks = 5;
-  const lines = [
-    { key: 'wagers' as const, color: '#FF6B35', label: 'Wagers' },
-    { key: 'payouts' as const, color: '#8B5CF6', label: 'Payouts' },
-    { key: 'ggr' as const, color: '#10B981', label: 'GGR' },
-  ];
+  const yTicks = 4;
 
   return (
     <div className="w-full bg-white dark:bg-neutral-dark-gray border border-gray-100 dark:border-neutral-border/40 rounded-2xl overflow-hidden">
-      {/* Header */}
-      <div className="px-6 pt-5 pb-3 flex flex-col sm:flex-row justify-between sm:items-center gap-3">
-        <div className="flex items-center gap-3">
-          <div className="p-2 rounded-xl bg-gradient-to-br from-primary/10 to-accent/10">
-            <Activity className="w-5 h-5 text-primary" />
-          </div>
-          <div>
-            <h3 className="text-sm font-bold dark:text-white tracking-tight">Revenue & Stake Trends</h3>
-            <p className="text-[11px] text-gray-400 mt-0.5">Last 7 days · real-time data</p>
-          </div>
-        </div>
-        <div className="flex gap-5">
-          {lines.map(l => (
-            <span key={l.key} className="flex items-center gap-2 text-[10px] font-bold uppercase tracking-wider text-gray-500 dark:text-gray-400">
-              <span className="w-3 h-[3px] rounded-full" style={{ background: l.color }} />
-              {l.label}
-            </span>
-          ))}
-        </div>
-      </div>
+      {header}
 
       {/* Chart */}
-      <div className="px-4 pb-3 relative">
+      <div className="px-4 pb-3 relative" onMouseLeave={() => setHoveredIdx(null)}>
         <svg viewBox={`0 0 ${width} ${height}`} className="w-full h-auto" style={{ minHeight: 200 }}>
           <defs>
             <linearGradient id="area-wagers" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#FF6B35" stopOpacity="0.15" />
+              <stop offset="0%" stopColor="#FF6B35" stopOpacity="0.10" />
               <stop offset="100%" stopColor="#FF6B35" stopOpacity="0.01" />
             </linearGradient>
             <linearGradient id="area-payouts" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.12" />
+              <stop offset="0%" stopColor="#8B5CF6" stopOpacity="0.08" />
               <stop offset="100%" stopColor="#8B5CF6" stopOpacity="0.01" />
             </linearGradient>
             <linearGradient id="area-ggr" x1="0" y1="0" x2="0" y2="1">
-              <stop offset="0%" stopColor="#10B981" stopOpacity="0.15" />
+              <stop offset="0%" stopColor="#10B981" stopOpacity="0.10" />
               <stop offset="100%" stopColor="#10B981" stopOpacity="0.01" />
             </linearGradient>
           </defs>
@@ -194,8 +261,8 @@ const RevenueChart: React.FC<{ daily: DailyStat[] }> = ({ daily }) => {
             const val = maxVal * (1 - i / yTicks);
             return (
               <g key={i}>
-                <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="currentColor" className="text-gray-100 dark:text-neutral-border/25" strokeWidth="0.8" />
-                <text x={padL - 8} y={y + 3} textAnchor="end" className="fill-gray-400 dark:fill-gray-600 select-none" fontSize="9" fontWeight="600">
+                <line x1={padL} y1={y} x2={width - padR} y2={y} stroke="currentColor" className="text-gray-100 dark:text-neutral-border/25" strokeWidth="0.6" />
+                <text x={padL - 8} y={y + 3} textAnchor="end" className="fill-gray-400 dark:fill-gray-600 select-none" fontSize="8.5" fontWeight="500">
                   {/* Compact tick labels so the axis stays readable at any scale (k / m / b). */}
                   {val >= 1e9 ? `${(val / 1e9).toFixed(1)}b` : val >= 1e6 ? `${(val / 1e6).toFixed(1)}m` : val >= 1000 ? `${(val / 1000).toFixed(0)}k` : val >= 1 ? val.toFixed(0) : '0'}
                 </text>
@@ -203,41 +270,39 @@ const RevenueChart: React.FC<{ daily: DailyStat[] }> = ({ daily }) => {
             );
           })}
 
-          {/* X-axis dates */}
+          {/* X-axis dates (thinned when the range is long) */}
           {daily.map((d, i) => (
-            <text key={i} x={getX(i)} y={height - 10} textAnchor="middle" className="fill-gray-400 dark:fill-gray-600 select-none" fontSize="9" fontWeight="600">
-              {new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-            </text>
+            (i % labelStep === 0 || i === n - 1) && (
+              <text key={i} x={getX(i)} y={height - 10} textAnchor="middle" className="fill-gray-400 dark:fill-gray-600 select-none" fontSize="8.5" fontWeight="500">
+                {new Date(d.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
+              </text>
+            )
           ))}
 
-          {/* Area fills */}
-          <path d={getAreaPath('wagers')} fill="url(#area-wagers)" />
-          <path d={getAreaPath('payouts')} fill="url(#area-payouts)" />
-          <path d={getAreaPath('ggr')} fill="url(#area-ggr)" />
-
-          {/* Lines */}
-          {lines.map(l => (
-            <path key={l.key} d={getSmoothPath(l.key)} fill="none" stroke={l.color} strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" />
+          {/* Area fills + lines for visible series */}
+          {visibleLines.map(l => <path key={`a-${l.key}`} d={getAreaPath(l.key)} fill={`url(#area-${l.key})`} />)}
+          {visibleLines.map(l => (
+            <path key={l.key} d={getSmoothPath(l.key)} fill="none" stroke={l.color} strokeWidth={dense ? 1.5 : 1.75} strokeLinecap="round" strokeLinejoin="round" />
           ))}
 
-          {/* Hover crosshair + dots */}
+          {/* Hover crosshair */}
           {hoveredIdx !== null && (
             <line x1={getX(hoveredIdx)} y1={padT} x2={getX(hoveredIdx)} y2={padT + chartH} stroke="#94A3B8" strokeWidth="1" strokeDasharray="4 3" opacity="0.5" />
           )}
 
-          {/* Interactive data points */}
+          {/* Data points: subtle resting dots only when sparse; highlight on hover always */}
           {daily.map((d, i) => {
             const isHovered = hoveredIdx === i;
             return (
-              <g key={i} onMouseEnter={() => setHoveredIdx(i)} onMouseLeave={() => setHoveredIdx(null)} className="cursor-pointer">
-                {/* Invisible hit area */}
-                <rect x={getX(i) - 18} y={padT} width={36} height={chartH} fill="transparent" />
-                {lines.map(l => {
+              <g key={i} onMouseEnter={() => setHoveredIdx(i)} className="cursor-pointer">
+                <rect x={getX(i) - hitW / 2} y={padT} width={hitW} height={chartH} fill="transparent" />
+                {visibleLines.map(l => {
                   const cy = getY(Math.max(d[l.key], 0));
+                  if (!isHovered && dense) return null;
                   return (
                     <g key={l.key}>
-                      {isHovered && <circle cx={getX(i)} cy={cy} r="8" fill={l.color} opacity="0.15" />}
-                      <circle cx={getX(i)} cy={cy} r={isHovered ? 4.5 : 3} fill={l.color} stroke="white" strokeWidth="2" className="transition-all duration-150" />
+                      {isHovered && <circle cx={getX(i)} cy={cy} r="7" fill={l.color} opacity="0.15" />}
+                      <circle cx={getX(i)} cy={cy} r={isHovered ? 4 : 2.25} fill={l.color} stroke="white" strokeWidth={isHovered ? 2 : 1.25} />
                     </g>
                   );
                 })}
@@ -303,6 +368,13 @@ const AdminScreen: React.FC = () => {
   const [adjustAmount, setAdjustAmount] = useState('');
   const [adjustNote, setAdjustNote] = useState('');
   const [modalBusy, setModalBusy] = useState(false);
+  const [modalTab, setModalTab] = useState<'overview' | 'bets' | 'transactions'>('overview');
+
+  // Chart range — kept in a ref too so the 20s poll refetches the same window
+  // without re-creating `load` (which would restart the polling effect).
+  const [chartRange, setChartRange] = useState<ChartRange>(7);
+  const [rangeLoading, setRangeLoading] = useState(false);
+  const chartRangeRef = useRef<ChartRange>(7);
 
   // Settings
   const [marginInput, setMarginInput] = useState('');
@@ -321,7 +393,7 @@ const AdminScreen: React.FC = () => {
   const load = useCallback(async () => {
     try {
       const [s, u, b, wd, cfg, tk] = await Promise.all([
-        fetchAdminStats(''),
+        fetchAdminStats('', chartRangeRef.current),
         fetchAdminUsers(''),
         fetchAdminBets(''),
         fetchAdminWithdrawals(''),
@@ -372,11 +444,19 @@ const AdminScreen: React.FC = () => {
     }
   };
 
+  const changeChartRange = (d: ChartRange) => {
+    setChartRange(d);
+    chartRangeRef.current = d;
+    setRangeLoading(true);
+    fetchAdminStats('', d).then(setStats).catch(() => {}).finally(() => setRangeLoading(false));
+  };
+
   const openUserDetails = async (u: AdminUser) => {
     setSelectedUser(u);
     setUserWallet(null);
     setAdjustAmount('');
     setAdjustNote('');
+    setModalTab('overview');
     try {
       const w = await fetchUserWallet('', u.deviceId);
       setUserWallet(w);
@@ -730,6 +810,128 @@ const AdminScreen: React.FC = () => {
     return match;
   });
 
+  // Per-player figures for the detail panel, derived from the global bets feed
+  // and the player's own wallet transactions.
+  const playerBets = useMemo(
+    () => (selectedUser
+      ? bets
+          .filter(b => b.deviceId === selectedUser.deviceId)
+          .sort((a, b) => new Date(b.placedDate).getTime() - new Date(a.placedDate).getTime())
+      : []),
+    [bets, selectedUser],
+  );
+
+  const playerStats = useMemo(() => {
+    const won = playerBets.filter(b => b.status === 'WON');
+    const lost = playerBets.filter(b => b.status === 'LOST');
+    const pending = playerBets.filter(b => b.status === 'PENDING');
+    const settledStake = [...won, ...lost].reduce((s, b) => s + b.wager, 0);
+    const totalPayout = won.reduce((s, b) => s + (b.payout || 0), 0);
+    const tx = userWallet?.transactions ?? [];
+    const deposits = tx.filter(t => t.type === 'Top-up');
+    const withdrawalsTx = tx.filter(t => t.type === 'Withdrawal');
+    return {
+      won: won.length,
+      lost: lost.length,
+      pending: pending.length,
+      // Player's net result on settled bets; negative means the house profited.
+      pnl: totalPayout - settledStake,
+      depositCount: deposits.length,
+      depositTotal: deposits.reduce((s, t) => s + Math.abs(t.amount), 0),
+      withdrawalCount: withdrawalsTx.length,
+      withdrawalTotal: withdrawalsTx.reduce((s, t) => s + Math.abs(t.amount), 0),
+    };
+  }, [playerBets, userWallet]);
+
+  // Full per-player statement: profile, lifetime figures and complete bet list.
+  const downloadPlayerStatement = () => {
+    if (!selectedUser) return;
+    try {
+      const { jsPDF } = (window as any).jspdf;
+      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a4' });
+      const primary = [255, 107, 53];
+      const text = [30, 41, 59];
+
+      doc.setFillColor(primary[0], primary[1], primary[2]);
+      doc.rect(0, 0, 210, 25, 'F');
+      doc.setTextColor(255, 255, 255);
+      doc.setFont('Helvetica', 'bold');
+      doc.setFontSize(16);
+      doc.text('RAPHBET PLAYER STATEMENT', 105, 16, { align: 'center' });
+
+      doc.setTextColor(text[0], text[1], text[2]);
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(9);
+      doc.text(`Generated: ${new Date().toLocaleString()}`, 15, 35);
+      doc.text(`Player: ${selectedUser.email || 'guest'}`, 15, 41);
+      doc.text(`Device ID: ${selectedUser.deviceId}`, 15, 47);
+      doc.line(15, 51, 195, 51);
+
+      const rows = [
+        ['Balance', formatCurrency(selectedUser.balance)],
+        ['Total Staked', formatCurrency(selectedUser.totalStaked)],
+        ['Player P/L (settled bets)', formatCurrency(playerStats.pnl)],
+        ['Bets (Won / Lost / Open)', `${playerStats.won} / ${playerStats.lost} / ${playerStats.pending}`],
+        ['Deposits', `${playerStats.depositCount} × · ${formatCurrency(playerStats.depositTotal)}`],
+        ['Withdrawals', `${playerStats.withdrawalCount} × · ${formatCurrency(playerStats.withdrawalTotal)}`],
+        ['KYC', selectedUser.verified ? 'Verified' : 'Unverified'],
+        ['Account', selectedUser.suspended ? 'Suspended' : 'Active'],
+      ];
+      let y = 60;
+      doc.setFontSize(10);
+      rows.forEach(([label, val]) => {
+        doc.setFont('Helvetica', 'bold');
+        doc.text(label, 15, y);
+        doc.setFont('Helvetica', 'normal');
+        doc.text(val, 130, y);
+        doc.line(15, y + 2, 195, y + 2);
+        y += 9;
+      });
+
+      if (playerBets.length > 0) {
+        y += 6;
+        doc.setFont('Helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text(`Bet History (${playerBets.length})`, 15, y);
+        y += 8;
+        const drawHead = () => {
+          doc.setFillColor(245, 247, 250);
+          doc.rect(15, y - 5, 180, 8, 'F');
+          doc.setFont('Helvetica', 'bold');
+          doc.setFontSize(8.5);
+          doc.text('Date', 18, y);
+          doc.text('Match / Market', 45, y);
+          doc.text('Stake', 135, y, { align: 'right' });
+          doc.text('Odds', 152, y, { align: 'right' });
+          doc.text('Status', 170, y, { align: 'right' });
+          doc.text('Payout', 192, y, { align: 'right' });
+          doc.setFont('Helvetica', 'normal');
+        };
+        drawHead();
+        playerBets.forEach(b => {
+          if (y > 270) { doc.addPage(); y = 25; drawHead(); }
+          y += 7;
+          doc.text(new Date(b.placedDate).toLocaleDateString(), 18, y);
+          const desc = `${b.match} — ${b.market}`;
+          doc.text(desc.length > 48 ? desc.slice(0, 48) + '…' : desc, 45, y);
+          doc.text(formatCurrency(b.wager), 135, y, { align: 'right' });
+          doc.text(b.odds.toFixed(2), 152, y, { align: 'right' });
+          doc.text(b.status, 170, y, { align: 'right' });
+          doc.text(b.payout ? formatCurrency(b.payout) : '—', 192, y, { align: 'right' });
+        });
+      }
+
+      doc.setFont('Helvetica', 'normal');
+      doc.setFontSize(8);
+      doc.setTextColor(148, 163, 184);
+      doc.text('Confidential - For Internal Raphbet Administration Only', 105, 287, { align: 'center' });
+      doc.save(`Raphbet_Player_${selectedUser.deviceId.slice(0, 8)}.pdf`);
+      showToast('Player statement downloaded.');
+    } catch {
+      showToast('PDF library not loaded.', 'error');
+    }
+  };
+
   // ─── Loading ───────────────────────────────────────────────────────────────
   if (loading) {
     return (
@@ -782,25 +984,27 @@ const AdminScreen: React.FC = () => {
         <div className="bg-white/80 dark:bg-neutral-dark-gray/80 backdrop-blur-md border border-gray-100 dark:border-neutral-border/50 rounded-2xl p-1.5 flex gap-1 mb-8 overflow-x-auto whitespace-nowrap scrollbar-none shadow-sm">
           {(['overview', 'users', 'bets', 'withdrawals', 'support', 'settings'] as const).map(t => {
             const isActive = tab === t;
-            const labelMap = {
-              overview: '📊 Overview',
-              users: '👥 Players',
-              bets: '🎟️ Bets Board',
-              withdrawals: '🏦 Withdrawals',
-              support: '💬 Support',
-              settings: '⚙️ Settings',
-            };
+            const tabMeta = {
+              overview: { label: 'Overview', Icon: BarChart3 },
+              users: { label: 'Players', Icon: UsersIcon },
+              bets: { label: 'Bets Board', Icon: Ticket },
+              withdrawals: { label: 'Withdrawals', Icon: MoneyIcon },
+              support: { label: 'Support', Icon: MessageSquare },
+              settings: { label: 'Settings', Icon: Settings },
+            } as const;
+            const { label, Icon } = tabMeta[t];
             return (
               <button
                 key={t}
                 onClick={() => setTab(t)}
-                className={`py-2.5 px-5 text-xs font-semibold tracking-tight rounded-xl transition-all duration-300 flex items-center gap-2 ${
+                className={`py-2.5 px-4 sm:px-5 text-xs font-semibold tracking-tight rounded-xl transition-all duration-300 flex items-center gap-2 ${
                   isActive
                     ? 'bg-primary text-white shadow-md shadow-primary/15'
                     : 'text-gray-400 hover:text-neutral-dark dark:hover:text-white hover:bg-gray-50 dark:hover:bg-neutral-dark/45'
                 }`}
               >
-                <span>{labelMap[t]}</span>
+                <Icon className="w-4 h-4 shrink-0" strokeWidth={isActive ? 2.25 : 1.75} />
+                <span>{label}</span>
                 {t === 'withdrawals' && withdrawals.length > 0 ? (
                   <span className={`ml-1 px-2 py-0.5 text-[9px] font-bold rounded-full ${isActive ? 'bg-white text-primary' : 'bg-danger text-white animate-pulse'}`}>{withdrawals.length}</span>
                 ) : ''}
@@ -967,7 +1171,7 @@ const AdminScreen: React.FC = () => {
             )}
 
             {/* Chart */}
-            {stats.daily && <RevenueChart daily={stats.daily} />}
+            <RevenueChart daily={stats.daily ?? []} range={chartRange} onRangeChange={changeChartRange} rangeLoading={rangeLoading} />
           </div>
         )}
 
@@ -1021,7 +1225,12 @@ const AdminScreen: React.FC = () => {
                 </thead>
                 <tbody className="divide-y divide-gray-100 dark:divide-neutral-border">
                   {filteredUsers.map(u => (
-                    <tr key={u.deviceId} className="hover:bg-gray-50/50 dark:hover:bg-neutral-dark/10 transition-colors">
+                    <tr
+                      key={u.deviceId}
+                      onClick={() => openUserDetails(u)}
+                      className="hover:bg-gray-50/80 dark:hover:bg-neutral-dark/20 transition-colors cursor-pointer"
+                      title="Open player details"
+                    >
                       <td className="px-5 py-4">
                         {u.email ? (
                           <>
@@ -1049,7 +1258,7 @@ const AdminScreen: React.FC = () => {
                       <td className="px-5 py-4 text-right tabular-nums">{u.bets}</td>
                       <td className="px-5 py-4 text-center">
                         <button
-                          onClick={() => openUserDetails(u)}
+                          onClick={e => { e.stopPropagation(); openUserDetails(u); }}
                           className="bg-primary/10 hover:bg-primary text-primary hover:text-white border border-primary/20 hover:border-transparent px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all"
                         >
                           Manage
@@ -1315,84 +1524,186 @@ const AdminScreen: React.FC = () => {
       {/* ── User Details Slideover ─────────────────────────────────────── */}
       {selectedUser && (
         <div className="fixed inset-0 z-50 flex justify-end bg-neutral-dark/60 backdrop-blur-sm animate-fade-in" onClick={e => { if (e.target === e.currentTarget) setSelectedUser(null); }}>
-          <div className="w-full max-w-lg bg-white dark:bg-neutral-dark-gray h-full border-l border-gray-200 dark:border-neutral-border p-6 overflow-y-auto flex flex-col shadow-2xl">
-            <div className="flex justify-between items-center border-b border-gray-200 dark:border-neutral-border pb-4 mb-6">
-              <div>
-                <h3 className="text-sm font-bold dark:text-white">Player Profile</h3>
-                <p className="text-[10px] font-mono text-gray-400 mt-0.5 truncate max-w-[300px]" title={selectedUser.deviceId}>{selectedUser.deviceId}</p>
+          <div className="w-full max-w-xl bg-white dark:bg-neutral-dark-gray h-full border-l border-gray-200 dark:border-neutral-border p-6 overflow-y-auto flex flex-col shadow-2xl">
+            <div className="flex justify-between items-center border-b border-gray-200 dark:border-neutral-border pb-4 mb-5">
+              <div className="min-w-0">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-sm font-bold dark:text-white">Player Profile</h3>
+                  <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full ${selectedUser.suspended ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
+                    {selectedUser.suspended ? 'SUSPENDED' : 'ACTIVE'}
+                  </span>
+                </div>
+                {selectedUser.email && <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-[320px]">{selectedUser.email}</p>}
+                <p className="text-[10px] font-mono text-gray-400 mt-0.5 truncate max-w-[320px]" title={selectedUser.deviceId}>{selectedUser.deviceId}</p>
               </div>
-              <button onClick={() => setSelectedUser(null)} className="text-gray-400 hover:text-danger transition-colors">
-                <XIcon className="h-5 w-5" />
-              </button>
+              <div className="flex items-center gap-2 shrink-0">
+                <button
+                  onClick={downloadPlayerStatement}
+                  title="Download full player statement (PDF)"
+                  className="flex items-center gap-1.5 text-[10px] font-bold text-white bg-primary hover:bg-primary-dark px-3 py-2 rounded-lg transition-colors"
+                >
+                  <Download className="w-3.5 h-3.5" /> PDF
+                </button>
+                <button onClick={() => setSelectedUser(null)} className="text-gray-400 hover:text-danger transition-colors p-1">
+                  <XIcon className="h-5 w-5" />
+                </button>
+              </div>
             </div>
 
-            <div className="flex-1 space-y-5">
-              {/* Stats grid */}
-              <div className="grid grid-cols-2 gap-3">
-                <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5">
-                  <p className="text-[9px] font-bold text-gray-400 uppercase">Balance</p>
-                  <p className="text-xl font-bold mt-1 tabular-nums dark:text-white">{formatCurrency(selectedUser.balance)}</p>
-                </div>
-                <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5">
-                  <p className="text-[9px] font-bold text-gray-400 uppercase">Total Staked</p>
-                  <p className="text-xl font-bold mt-1 tabular-nums dark:text-white">{formatCurrency(selectedUser.totalStaked)}</p>
-                </div>
-                <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5">
-                  <p className="text-[9px] font-bold text-gray-400 uppercase">Total Bets</p>
-                  <p className="text-xl font-bold mt-1 dark:text-white">{selectedUser.bets}</p>
-                </div>
-                <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5">
-                  <p className="text-[9px] font-bold text-gray-400 uppercase">KYC Status</p>
-                  <p className={`text-sm font-bold mt-2 ${selectedUser.verified ? 'text-success' : 'text-amber-500'}`}>
-                    {selectedUser.verified ? '✓ Verified' : '✗ Unverified'}
-                  </p>
-                </div>
+            {/* Key figures — always visible regardless of tab */}
+            <div className="grid grid-cols-3 gap-2.5 mb-5">
+              <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-gray-400"><Wallet className="w-3 h-3" /><p className="text-[9px] font-bold uppercase">Balance</p></div>
+                <p className="text-base font-bold mt-1 tabular-nums dark:text-white">{formatCurrency(selectedUser.balance)}</p>
               </div>
-
-              {/* Quick actions */}
-              <div className="flex flex-wrap gap-2">
-                <button onClick={toggleUserSuspension} disabled={modalBusy}
-                  className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${
-                    selectedUser.suspended ? 'bg-success/10 border-success/20 text-success hover:bg-success hover:text-white hover:border-transparent' : 'bg-danger/10 border-danger/20 text-danger hover:bg-danger hover:text-white hover:border-transparent'
-                  }`}>
-                  {selectedUser.suspended ? 'Activate Account' : 'Suspend Account'}
-                </button>
-                <button onClick={toggleUserKyc} disabled={modalBusy}
-                  className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${
-                    selectedUser.verified ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' : 'bg-success/10 border-success/20 text-success'
-                  }`}>
-                  {selectedUser.verified ? 'Revoke KYC' : 'Verify KYC'}
-                </button>
+              <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-gray-400"><Scale className="w-3 h-3" /><p className="text-[9px] font-bold uppercase">Player P/L</p></div>
+                <p className={`text-base font-bold mt-1 tabular-nums ${playerStats.pnl > 0 ? 'text-success' : playerStats.pnl < 0 ? 'text-danger' : 'dark:text-white'}`}>
+                  {playerStats.pnl > 0 ? '+' : ''}{formatCurrency(playerStats.pnl)}
+                </p>
               </div>
+              <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-gray-400"><Ticket className="w-3 h-3" /><p className="text-[9px] font-bold uppercase">Bets W·L·Open</p></div>
+                <p className="text-base font-bold mt-1 tabular-nums dark:text-white">
+                  <span className="text-success">{playerStats.won}</span> · <span className="text-danger">{playerStats.lost}</span> · <span className="text-amber-500">{playerStats.pending}</span>
+                </p>
+              </div>
+              <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-gray-400"><ArrowUpCircle className="w-3 h-3" /><p className="text-[9px] font-bold uppercase">Deposits</p></div>
+                <p className="text-base font-bold mt-1 tabular-nums dark:text-white">{playerStats.depositCount}×</p>
+                <p className="text-[10px] text-gray-400 tabular-nums">{formatCurrency(playerStats.depositTotal)}</p>
+              </div>
+              <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-gray-400"><ArrowDownCircle className="w-3 h-3" /><p className="text-[9px] font-bold uppercase">Withdrawals</p></div>
+                <p className="text-base font-bold mt-1 tabular-nums dark:text-white">{playerStats.withdrawalCount}×</p>
+                <p className="text-[10px] text-gray-400 tabular-nums">{formatCurrency(playerStats.withdrawalTotal)}</p>
+              </div>
+              <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-3">
+                <div className="flex items-center gap-1.5 text-gray-400"><ShieldAlert className="w-3 h-3" /><p className="text-[9px] font-bold uppercase">KYC</p></div>
+                <p className={`text-sm font-bold mt-1.5 ${selectedUser.verified ? 'text-success' : 'text-amber-500'}`}>
+                  {selectedUser.verified ? '✓ Verified' : '✗ Unverified'}
+                </p>
+              </div>
+            </div>
 
-              {/* Balance adjustment */}
-              <form onSubmit={handleAdjustBalance} className="border border-gray-200 dark:border-neutral-border rounded-xl p-4 space-y-3">
-                <h4 className="text-xs font-bold dark:text-white">Adjust Wallet Balance</h4>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Amount (USD, can be negative)</label>
-                    <input type="number" step="0.01" required value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)}
-                      placeholder="e.g. 50 or -20"
-                      className="w-full px-3.5 py-2 border border-gray-200 dark:border-neutral-border bg-transparent rounded-xl text-xs focus:outline-none focus:border-primary dark:text-white" />
+            {/* Panel tabs */}
+            <div className="flex gap-1 bg-gray-100 dark:bg-neutral-dark rounded-xl p-1 mb-5">
+              {([
+                ['overview', 'Manage', UserIcon],
+                ['bets', `Bet History (${playerBets.length})`, History],
+                ['transactions', `Transactions (${userWallet?.transactions.length ?? 0})`, ReceiptIcon],
+              ] as const).map(([key, label, Icon]) => (
+                <button
+                  key={key}
+                  onClick={() => setModalTab(key)}
+                  className={`flex-1 flex items-center justify-center gap-1.5 py-2 text-[10px] font-bold rounded-lg transition-colors ${
+                    modalTab === key ? 'bg-white dark:bg-neutral-dark-card text-primary shadow-sm' : 'text-gray-400 hover:text-gray-600 dark:hover:text-gray-300'
+                  }`}
+                >
+                  <Icon className="w-3.5 h-3.5" /> {label}
+                </button>
+              ))}
+            </div>
+
+            <div className="flex-1">
+              {/* ── Manage tab ── */}
+              {modalTab === 'overview' && (
+                <div className="space-y-5">
+                  <div className="flex flex-wrap gap-2">
+                    <button onClick={toggleUserSuspension} disabled={modalBusy}
+                      className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${
+                        selectedUser.suspended ? 'bg-success/10 border-success/20 text-success hover:bg-success hover:text-white hover:border-transparent' : 'bg-danger/10 border-danger/20 text-danger hover:bg-danger hover:text-white hover:border-transparent'
+                      }`}>
+                      {selectedUser.suspended ? 'Activate Account' : 'Suspend Account'}
+                    </button>
+                    <button onClick={toggleUserKyc} disabled={modalBusy}
+                      className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${
+                        selectedUser.verified ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' : 'bg-success/10 border-success/20 text-success'
+                      }`}>
+                      {selectedUser.verified ? 'Revoke KYC' : 'Verify KYC'}
+                    </button>
                   </div>
-                  <div>
-                    <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Note</label>
-                    <input type="text" value={adjustNote} onChange={e => setAdjustNote(e.target.value)}
-                      placeholder="Admin adjustment"
-                      className="w-full px-3.5 py-2 border border-gray-200 dark:border-neutral-border bg-transparent rounded-xl text-xs focus:outline-none focus:border-primary dark:text-white" />
+
+                  {/* Balance adjustment */}
+                  <form onSubmit={handleAdjustBalance} className="border border-gray-200 dark:border-neutral-border rounded-xl p-4 space-y-3">
+                    <h4 className="text-xs font-bold dark:text-white">Adjust Wallet Balance</h4>
+                    <div className="grid grid-cols-2 gap-3">
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Amount (USD, can be negative)</label>
+                        <input type="number" step="0.01" required value={adjustAmount} onChange={e => setAdjustAmount(e.target.value)}
+                          placeholder="e.g. 50 or -20"
+                          className="w-full px-3.5 py-2 border border-gray-200 dark:border-neutral-border bg-transparent rounded-xl text-xs focus:outline-none focus:border-primary dark:text-white" />
+                      </div>
+                      <div>
+                        <label className="block text-[9px] font-bold text-gray-400 uppercase mb-1">Note</label>
+                        <input type="text" value={adjustNote} onChange={e => setAdjustNote(e.target.value)}
+                          placeholder="Admin adjustment"
+                          className="w-full px-3.5 py-2 border border-gray-200 dark:border-neutral-border bg-transparent rounded-xl text-xs focus:outline-none focus:border-primary dark:text-white" />
+                      </div>
+                    </div>
+                    <button type="submit" disabled={modalBusy || !adjustAmount}
+                      className="w-full py-2 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-lg transition-colors">
+                      {modalBusy ? 'Processing…' : 'Apply Delta'}
+                    </button>
+                  </form>
+
+                  <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-4 text-[11px] text-gray-400 space-y-1.5">
+                    <p><span className="font-bold text-gray-500 dark:text-gray-300">Total staked:</span> {formatCurrency(selectedUser.totalStaked)} across {selectedUser.bets} bet{selectedUser.bets === 1 ? '' : 's'}</p>
+                    <p><span className="font-bold text-gray-500 dark:text-gray-300">House result on this player:</span> <span className={playerStats.pnl < 0 ? 'text-success font-bold' : playerStats.pnl > 0 ? 'text-danger font-bold' : ''}>{playerStats.pnl < 0 ? '+' : playerStats.pnl > 0 ? '−' : ''}{formatCurrency(Math.abs(playerStats.pnl))}</span></p>
                   </div>
                 </div>
-                <button type="submit" disabled={modalBusy || !adjustAmount}
-                  className="w-full py-2 bg-primary hover:bg-primary-dark text-white text-xs font-bold rounded-lg transition-colors">
-                  {modalBusy ? 'Processing…' : 'Apply Delta'}
-                </button>
-              </form>
+              )}
 
-              {/* Transaction history */}
-              <div>
-                <h4 className="text-xs font-bold dark:text-white mb-3">Transaction History</h4>
-                {userWallet ? (
-                  <div className="border border-gray-200 dark:border-neutral-border rounded-xl overflow-hidden max-h-72 overflow-y-auto">
+              {/* ── Bet history tab ── */}
+              {modalTab === 'bets' && (
+                playerBets.length === 0 ? (
+                  <div className="text-center py-10 text-xs text-gray-400">
+                    <Ticket className="w-8 h-8 mx-auto mb-2 text-gray-200 dark:text-neutral-border" />
+                    This player hasn't placed any bets yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2.5">
+                    {playerBets.map(b => (
+                      <div key={b.id} className="border border-gray-200 dark:border-neutral-border rounded-xl p-3.5 hover:border-primary/30 transition-colors">
+                        <div className="flex justify-between items-start gap-2">
+                          <div className="min-w-0">
+                            <p className="text-xs font-bold dark:text-white truncate" title={b.match}>{b.match}</p>
+                            <p className="text-[10px] text-gray-400 mt-0.5 truncate">{b.market} · {new Date(b.placedDate).toLocaleString()}</p>
+                          </div>
+                          <StatusBadge status={b.status} />
+                        </div>
+                        <div className="flex items-center justify-between mt-2.5 pt-2.5 border-t border-gray-100 dark:border-neutral-border/60">
+                          <p className="text-[11px] tabular-nums">
+                            <span className="text-gray-400">Stake</span> <span className="font-bold">{formatCurrency(b.wager)}</span>
+                            <span className="text-gray-400 ml-2">@ {b.odds.toFixed(2)}</span>
+                            {b.payout > 0 && <span className="text-success font-bold ml-2">→ {formatCurrency(b.payout)}</span>}
+                          </p>
+                          <div className="flex items-center gap-1.5">
+                            {b.status === 'PENDING' && (
+                              <>
+                                <button onClick={() => handleSettleBet(b.id, 'WON')} className="bg-success/10 hover:bg-success text-success hover:text-white px-2 py-1 rounded text-[9px] font-bold transition-all">W</button>
+                                <button onClick={() => handleSettleBet(b.id, 'LOST')} className="bg-danger/10 hover:bg-danger text-danger hover:text-white px-2 py-1 rounded text-[9px] font-bold transition-all">L</button>
+                              </>
+                            )}
+                            <button
+                              onClick={() => downloadBetReceipt(b)}
+                              title="Download PDF receipt"
+                              className="flex items-center gap-1 text-[9px] font-bold text-gray-400 hover:text-primary border border-gray-200 dark:border-neutral-border rounded px-2 py-1 transition-colors"
+                            >
+                              <Download className="w-3 h-3" /> Receipt
+                            </button>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )
+              )}
+
+              {/* ── Transactions tab ── */}
+              {modalTab === 'transactions' && (
+                userWallet ? (
+                  <div className="border border-gray-200 dark:border-neutral-border rounded-xl overflow-hidden">
                     <table className="w-full text-[11px] text-left">
                       <thead className="text-[9px] uppercase font-bold text-gray-400 border-b border-gray-200 dark:border-neutral-border bg-gray-50/50 dark:bg-neutral-dark/30">
                         <tr>
@@ -1410,7 +1721,7 @@ const AdminScreen: React.FC = () => {
                             <td className={`px-4 py-3 font-bold tabular-nums ${tx.amount >= 0 ? 'text-success' : 'text-danger'}`}>
                               {tx.amount >= 0 ? '+' : ''}{formatCurrency(tx.amount)}
                             </td>
-                            <td className="px-4 py-3 text-gray-400 max-w-[130px] truncate" title={tx.description}>{tx.description}</td>
+                            <td className="px-4 py-3 text-gray-400 max-w-[160px] truncate" title={tx.description}>{tx.description}</td>
                           </tr>
                         ))}
                         {userWallet.transactions.length === 0 && (
@@ -1424,8 +1735,8 @@ const AdminScreen: React.FC = () => {
                     <div className="h-4 w-4 border-2 border-primary border-t-transparent rounded-full animate-spin" />
                     Loading wallet logs…
                   </div>
-                )}
-              </div>
+                )
+              )}
             </div>
           </div>
         </div>
