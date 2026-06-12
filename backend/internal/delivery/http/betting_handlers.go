@@ -28,6 +28,7 @@ type BettingService interface {
 	Limits() betting.Limits
 	AdjustBalance(deviceID string, amount domain.Money, description string) (*domain.Wallet, error)
 	SetSuspended(deviceID string, suspended bool) (*domain.Wallet, error)
+	DeleteAccount(deviceID string) (*domain.Wallet, error)
 	SetLimits(limits betting.Limits)
 	SettleBet(betID string, outcome domain.BetStatus) (*domain.Bet, error)
 }
@@ -48,8 +49,10 @@ func bettingError(w http.ResponseWriter, err error) {
 	switch {
 	case errors.Is(err, betting.ErrInsufficient):
 		writeJSON(w, http.StatusPaymentRequired, map[string]string{"error": "insufficient balance"})
-	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending), errors.Is(err, betting.ErrStakeRange), errors.Is(err, betting.ErrWithdrawalRange), errors.Is(err, betting.ErrBadSelection), errors.Is(err, betting.ErrDuplicateLeg), errors.Is(err, betting.ErrTooManyLegs), errors.Is(err, betting.ErrLiabilityCap), errors.Is(err, betting.ErrNotCashable):
+	case errors.Is(err, betting.ErrInvalidAmount), errors.Is(err, betting.ErrEmptyBet), errors.Is(err, betting.ErrNoAddress), errors.Is(err, betting.ErrNotPending), errors.Is(err, betting.ErrStakeRange), errors.Is(err, betting.ErrWithdrawalRange), errors.Is(err, betting.ErrBadSelection), errors.Is(err, betting.ErrDuplicateLeg), errors.Is(err, betting.ErrTooManyLegs), errors.Is(err, betting.ErrLiabilityCap), errors.Is(err, betting.ErrNotCashable), errors.Is(err, betting.ErrAdjustNegative):
 		writeJSON(w, http.StatusBadRequest, map[string]string{"error": err.Error()})
+	case errors.Is(err, betting.ErrSuspended), errors.Is(err, betting.ErrDeleted):
+		writeJSON(w, http.StatusForbidden, map[string]string{"error": err.Error()})
 	default:
 		writeError(w, http.StatusInternalServerError, "betting operation failed", err)
 	}
@@ -69,6 +72,21 @@ func (h *Handlers) requireVerified(w http.ResponseWriter, id string) bool {
 		return false
 	}
 	return true
+}
+
+// deleteAccount lets a signed-in player close their own account. The wallet
+// record is kept (audit trail) but flagged deleted + suspended.
+func (h *Handlers) deleteAccount(w http.ResponseWriter, r *http.Request) {
+	id, ok := h.identity(w, r)
+	if !ok {
+		return
+	}
+	wallet, err := h.betting.DeleteAccount(id)
+	if err != nil {
+		bettingError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wallet)
 }
 
 func (h *Handlers) getWallet(w http.ResponseWriter, r *http.Request) {

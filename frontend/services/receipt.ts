@@ -1,158 +1,213 @@
 import type { PlacedBet, Transaction } from '../types';
 
 /**
- * Generates and downloads a PDF bet receipt for the player. Uses the jsPDF
- * library loaded globally in index.html. `format` converts USD cents to a
- * display string (currency-aware). Returns false if jsPDF isn't available.
- * Handles both single bets and accumulators.
+ * PDF receipts for players (bet slips + wallet transactions), generated with
+ * the jsPDF library loaded globally in index.html. `format` converts USD cents
+ * to a display string (currency-aware). Both functions return false if jsPDF
+ * isn't available.
  */
-export function downloadBetSlip(bet: PlacedBet, format: (cents: number) => string): boolean {
+
+type RGB = [number, number, number];
+const PRIMARY: RGB = [255, 107, 53];
+const INK: RGB = [30, 41, 59];
+const MUTED: RGB = [148, 163, 184];
+const ROW_BG: RGB = [248, 250, 252];
+const GREEN: RGB = [22, 163, 74];
+const RED: RGB = [220, 38, 38];
+const AMBER: RGB = [217, 119, 6];
+
+const W = 105; // a6 portrait width (mm)
+const M = 8;   // page margin
+
+/** Brand header: orange band with a circular logo mark and the wordmark. */
+function drawHeader(doc: any, subtitle: string) {
+  doc.setFillColor(...PRIMARY);
+  doc.rect(0, 0, W, 18, 'F');
+  // Logo mark: white disc + orange "R"
+  doc.setFillColor(255, 255, 255);
+  doc.circle(M + 5, 9, 5, 'F');
+  doc.setTextColor(...PRIMARY);
+  doc.setFont('Helvetica', 'bold');
+  doc.setFontSize(11);
+  doc.text('R', M + 5, 11.2, { align: 'center' });
+  // Wordmark + subtitle
+  doc.setTextColor(255, 255, 255);
+  doc.setFontSize(13);
+  doc.text('RAPHBET', M + 13, 8.5);
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(7.5);
+  doc.text(subtitle, M + 13, 13.5);
+}
+
+/** Meta block under the header: player, receipt id, date. */
+function drawMeta(doc: any, rows: [string, string][], startY: number): number {
+  let y = startY;
+  doc.setFontSize(7.5);
+  rows.forEach(([label, value]) => {
+    doc.setFont('Helvetica', 'normal');
+    doc.setTextColor(...MUTED);
+    doc.text(label.toUpperCase(), M, y);
+    doc.setFont('Helvetica', 'bold');
+    doc.setTextColor(...INK);
+    doc.text(value, W - M, y, { align: 'right' });
+    y += 4.5;
+  });
+  doc.setDrawColor(226, 232, 240);
+  doc.line(M, y, W - M, y);
+  return y + 6;
+}
+
+/** Striped label/value table: labels left, values right-aligned. */
+function drawTable(doc: any, rows: { label: string; value: string; color?: RGB }[], startY: number): number {
+  const rowH = 7;
+  let y = startY;
+  rows.forEach((r, i) => {
+    if (i % 2 === 0) {
+      doc.setFillColor(...ROW_BG);
+      doc.rect(M, y - 4.6, W - 2 * M, rowH, 'F');
+    }
+    doc.setFont('Helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.setTextColor(...MUTED);
+    doc.text(r.label, M + 3, y);
+    doc.setFont('Helvetica', 'bold');
+    doc.setTextColor(...(r.color ?? INK));
+    doc.text(r.value, W - M - 3, y, { align: 'right' });
+    y += rowH;
+  });
+  return y;
+}
+
+/** Footer: verification hash + thank-you line. */
+function drawFooter(doc: any, hashSeed: string, y: number) {
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(6.5);
+  doc.setTextColor(...MUTED);
+  doc.text(`VERIFICATION ${btoa(hashSeed).slice(0, 24)}`, W / 2, y, { align: 'center' });
+  doc.setFont('Helvetica', 'bold');
+  doc.setTextColor(...PRIMARY);
+  doc.setFontSize(8.5);
+  doc.text('Thank you for playing with Raphbet!', W / 2, y + 6, { align: 'center' });
+  doc.setFont('Helvetica', 'normal');
+  doc.setFontSize(6);
+  doc.setTextColor(...MUTED);
+  doc.text('18+ · Play responsibly · raphbet.com', W / 2, y + 11, { align: 'center' });
+}
+
+/** Generates and downloads a bet receipt (single bets and accumulators). */
+export function downloadBetSlip(bet: PlacedBet, format: (cents: number) => string, playerName?: string): boolean {
   const lib = (window as any).jspdf;
   if (!lib?.jsPDF) return false;
   const { jsPDF } = lib;
-
   const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a6' });
-  const primary: [number, number, number] = [255, 107, 53];
-  const ink: [number, number, number] = [30, 41, 59];
-  const W = 105;
 
-  doc.setFillColor(...primary);
-  doc.rect(0, 0, W, 15, 'F');
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('RAPHBET — BET RECEIPT', W / 2, 9.5, { align: 'center' });
+  drawHeader(doc, 'Official bet receipt');
 
-  doc.setTextColor(...ink);
-  doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.text(`Receipt: ${bet.id}`, 8, 23);
-  doc.text(`Placed: ${new Date(bet.placedDate).toLocaleString()}`, 8, 28);
-  doc.line(8, 32, W - 8, 32);
+  const meta: [string, string][] = [];
+  if (playerName) meta.push(['Player', playerName]);
+  meta.push(['Receipt', bet.id.slice(0, 20)]);
+  meta.push(['Placed', new Date(bet.placedDate).toLocaleString()]);
+  let y = drawMeta(doc, meta, 25);
 
   const isMulti = !!bet.isMulti && Array.isArray(bet.selections) && bet.selections.length > 0;
   const legs = isMulti ? bet.selections! : [bet.selection];
 
-  let y = 39;
   doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(9);
-  doc.text(isMulti ? `ACCUMULATOR · ${legs.length} legs` : 'SELECTION', 8, y);
-  y += 6;
+  doc.setFontSize(8.5);
+  doc.setTextColor(...INK);
+  doc.text(isMulti ? `ACCUMULATOR — ${legs.length} LEGS` : 'SELECTION', M, y);
+  y += 5;
 
   doc.setFontSize(8);
   legs.forEach((s) => {
     doc.setFont('Helvetica', 'bold');
-    const l1 = doc.splitTextToSize(s.marketLabel, W - 16);
-    doc.text(l1, 8, y);
-    y += 4 * l1.length;
+    doc.setTextColor(...INK);
+    const l1 = doc.splitTextToSize(s.marketLabel, W - 2 * M - 14);
+    doc.text(l1, M, y);
+    doc.text(`@ ${s.odds.toFixed(2)}`, W - M, y, { align: 'right' });
+    y += 3.8 * l1.length;
     doc.setFont('Helvetica', 'normal');
-    const l2 = doc.splitTextToSize(`${s.matchDescription}  @ ${s.odds.toFixed(2)}`, W - 16);
-    doc.text(l2, 8, y);
-    y += 4 * l2.length + 1.5;
+    doc.setTextColor(...MUTED);
+    const l2 = doc.splitTextToSize(s.matchDescription, W - 2 * M);
+    doc.text(l2, M, y);
+    y += 3.8 * l2.length + 2;
   });
 
   const combinedOdds = isMulti ? (bet.multiplier ?? legs.reduce((p, s) => p * s.odds, 1)) : bet.selection.odds;
   const boost = bet.winBoost ?? 0;
-  const potential = bet.status === 'WON' ? (bet.payout ?? 0) : bet.wager * combinedOdds * (1 + boost);
+  const settled = bet.status === 'WON' || bet.status === 'CASHED_OUT';
+  const potential = settled ? (bet.payout ?? 0) : bet.wager * combinedOdds * (1 + boost);
 
-  y += 1;
-  const boxH = isMulti && boost > 0 ? 30 : 24;
-  doc.setFillColor(241, 245, 249);
-  doc.rect(8, y, W - 16, boxH, 'F');
-  y += 6;
-  const row = (label: string, val: string, color?: [number, number, number]) => {
-    doc.setFont('Helvetica', 'normal');
-    doc.setTextColor(...ink);
-    doc.text(label, 12, y);
-    doc.setFont('Helvetica', 'bold');
-    if (color) doc.setTextColor(...color);
-    doc.text(val, 58, y);
-    doc.setTextColor(...ink);
-    y += 6;
-  };
-  row('Stake:', format(bet.wager));
-  row(isMulti ? 'Combined odds:' : 'Odds:', combinedOdds.toFixed(2));
-  if (isMulti && boost > 0) row('Win boost:', `+${Math.round(boost * 100)}%`);
-  row('Status:', bet.status, bet.status === 'WON' ? [22, 163, 74] : bet.status === 'LOST' ? [220, 38, 38] : [245, 158, 11]);
-  row(bet.status === 'WON' ? 'Payout:' : 'To win:', format(potential), [22, 163, 74]);
+  const statusColor: RGB = bet.status === 'WON' || bet.status === 'CASHED_OUT' ? GREEN : bet.status === 'LOST' ? RED : AMBER;
+  const statusLabel = bet.status === 'CASHED_OUT' ? 'CASHED OUT' : bet.status;
 
   y += 2;
-  doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`HASH ${btoa(bet.id + bet.wager).slice(0, 24)}`, W / 2, y + 2, { align: 'center' });
-  doc.setFont('Helvetica', 'bold');
-  doc.setTextColor(...primary);
-  doc.setFontSize(8.5);
-  doc.text('Thank you for betting with Raphbet!', W / 2, y + 9, { align: 'center' });
+  const rows = [
+    { label: 'Stake', value: format(bet.wager) },
+    { label: isMulti ? 'Combined odds' : 'Odds', value: combinedOdds.toFixed(2) },
+    ...(isMulti && boost > 0 ? [{ label: 'Win boost', value: `+${Math.round(boost * 100)}%` }] : []),
+    { label: 'Status', value: statusLabel, color: statusColor },
+    { label: settled ? 'Payout' : 'Potential payout', value: format(potential), color: GREEN },
+  ];
+  y = drawTable(doc, rows, y);
 
+  drawFooter(doc, bet.id + bet.wager, y + 5);
   doc.save(`Raphbet_Bet_${bet.id.slice(0, 8)}.pdf`);
   return true;
 }
 
-/**
- * Generates and downloads a PDF receipt for a wallet transaction (deposit,
- * withdrawal, wager or payout). Returns false if jsPDF isn't available.
- */
-export function downloadTransactionReceipt(tx: Transaction, format: (cents: number) => string): boolean {
+/** Generates and downloads a wallet transaction receipt. */
+export function downloadTransactionReceipt(tx: Transaction, format: (cents: number) => string, playerName?: string): boolean {
   const lib = (window as any).jspdf;
   if (!lib?.jsPDF) return false;
   const { jsPDF } = lib;
-
   const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a6' });
-  const primary: [number, number, number] = [255, 107, 53];
-  const ink: [number, number, number] = [30, 41, 59];
-  const W = 105;
+
   const isCredit = tx.type === 'Payout' || tx.type === 'Top-up';
   const kind = tx.type === 'Top-up' ? 'DEPOSIT' : tx.type === 'Withdrawal' ? 'WITHDRAWAL' : tx.type.toUpperCase();
+  // Honest status wording: a withdrawal ledger entry means the funds are held
+  // pending review, not that the payout has happened.
+  const status: { label: string; color: RGB } =
+    tx.type === 'Top-up' ? { label: 'Confirmed', color: GREEN }
+    : tx.type === 'Payout' ? { label: 'Credited', color: GREEN }
+    : tx.type === 'Wager' ? { label: 'Accepted', color: INK }
+    : { label: 'Requested — under review', color: AMBER };
 
-  doc.setFillColor(...primary);
-  doc.rect(0, 0, W, 15, 'F');
+  drawHeader(doc, 'Transaction receipt');
+
+  const meta: [string, string][] = [];
+  if (playerName) meta.push(['Player', playerName]);
+  meta.push(['Receipt', tx.id.slice(0, 20)]);
+  meta.push(['Date', new Date(tx.date).toLocaleString()]);
+  let y = drawMeta(doc, meta, 25);
+
+  // Transaction kind pill, colored by direction.
+  const pillColor: RGB = isCredit ? GREEN : tx.type === 'Withdrawal' ? AMBER : RED;
+  doc.setFillColor(...pillColor);
+  doc.roundedRect(M, y - 3.5, 38, 7, 2, 2, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('Helvetica', 'bold');
-  doc.setFontSize(13);
-  doc.text('RAPHBET — TRANSACTION', W / 2, 9.5, { align: 'center' });
-
-  doc.setTextColor(...ink);
-  doc.setFont('Helvetica', 'normal');
   doc.setFontSize(8);
-  doc.text(`Receipt: ${tx.id}`, 8, 23);
-  doc.text(`Date: ${new Date(tx.date).toLocaleString()}`, 8, 28);
-  doc.line(8, 32, W - 8, 32);
+  doc.text(kind, M + 19, y + 1, { align: 'center' });
+  y += 9;
 
-  let y = 40;
-  doc.setFillColor(241, 245, 249);
-  doc.rect(8, y - 5, W - 16, 30, 'F');
-  const row = (label: string, val: string, color?: [number, number, number]) => {
-    doc.setFont('Helvetica', 'normal');
-    doc.setTextColor(...ink);
-    doc.text(label, 12, y);
-    doc.setFont('Helvetica', 'bold');
-    if (color) doc.setTextColor(...color);
-    doc.text(val, 50, y);
-    doc.setTextColor(...ink);
-    y += 6.5;
-  };
-  row('Type:', kind);
-  row('Amount:', `${isCredit ? '+' : ''}${format(tx.amount)}`, isCredit ? [22, 163, 74] : [220, 38, 38]);
-  row('Status:', 'Completed', [22, 163, 74]);
+  y = drawTable(doc, [
+    // ASCII hyphen, not U+2212: jsPDF's built-in Helvetica can't encode the
+    // Unicode minus and would print a garbage glyph.
+    { label: 'Amount', value: `${isCredit ? '+' : '-'}${format(Math.abs(tx.amount))}`, color: isCredit ? GREEN : RED },
+    { label: 'Type', value: kind },
+    { label: 'Status', value: status.label, color: status.color },
+  ], y);
 
-  y += 4;
+  y += 3;
   doc.setFont('Helvetica', 'normal');
-  doc.setFontSize(8);
-  doc.setTextColor(...ink);
-  const desc = doc.splitTextToSize(`Details: ${tx.description}`, W - 16);
-  doc.text(desc, 8, y);
-  y += 4 * desc.length + 4;
+  doc.setFontSize(7.5);
+  doc.setTextColor(...MUTED);
+  const desc = doc.splitTextToSize(tx.description, W - 2 * M);
+  doc.text(desc, M, y);
+  y += 3.8 * desc.length + 4;
 
-  doc.setFontSize(7);
-  doc.setTextColor(148, 163, 184);
-  doc.text(`HASH ${btoa(tx.id + tx.amount).slice(0, 24)}`, W / 2, y, { align: 'center' });
-  doc.setFont('Helvetica', 'bold');
-  doc.setTextColor(...primary);
-  doc.setFontSize(8.5);
-  doc.text('Thank you for using Raphbet!', W / 2, y + 7, { align: 'center' });
-
+  drawFooter(doc, tx.id + tx.amount, y);
   doc.save(`Raphbet_${kind}_${tx.id.slice(0, 8)}.pdf`);
   return true;
 }

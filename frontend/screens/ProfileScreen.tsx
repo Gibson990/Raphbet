@@ -8,9 +8,10 @@ import { CurrencySelect } from '../components/CurrencySelect';
 import { SunIcon, MoonIcon, CheckCircleIcon, ShieldExclamationIcon, CameraIcon, PencilIcon } from '../components/icons';
 import Modal from '../components/common/Modal';
 import TermsContent from '../components/auth/TermsContent';
+import { deleteMyAccount } from '../services/wallet';
 
 const ProfileScreen: React.FC = () => {
-  const { isDarkMode, toggleDarkMode, wallet } = useAppOutlet();
+  const { isDarkMode, toggleDarkMode, wallet, addToast } = useAppOutlet();
   const { format } = useCurrency();
   const navigate = useNavigate();
   const { user, logout, updateUser } = useAuth();
@@ -18,8 +19,22 @@ const ProfileScreen: React.FC = () => {
   const [isEditing, setIsEditing] = useState(false);
   const [name, setName] = useState(user?.name || '');
   const [isTermsOpen, setIsTermsOpen] = useState(false);
+  const [isDeleteOpen, setIsDeleteOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
 
   if (!user) return null;
+
+  const handleDeleteAccount = async () => {
+    setDeleting(true);
+    try {
+      await deleteMyAccount();
+      addToast('Your account has been deleted.', 'success');
+      await logout(); // redirects to the public home via the auth guard
+    } catch (err) {
+      addToast(err instanceof Error ? err.message : 'Could not delete the account. Please try again.', 'error');
+      setDeleting(false);
+    }
+  };
 
   const handleSave = () => { updateUser({ name }); setIsEditing(false); };
   const handleCancel = () => { setName(user.name); setIsEditing(false); };
@@ -150,8 +165,51 @@ const ProfileScreen: React.FC = () => {
           <button onClick={logout} className="w-full mt-3 bg-danger/10 text-danger font-bold py-3 rounded-xl hover:bg-danger/20 transition-colors">
             Log Out
           </button>
+
+          <button
+            onClick={() => setIsDeleteOpen(true)}
+            className="w-full mt-2 text-xs font-semibold text-gray-400 hover:text-danger py-2 transition-colors"
+          >
+            Delete my account
+          </button>
         </div>
       </div>
+
+      {isDeleteOpen && (
+        <Modal title="Delete account" onClose={() => !deleting && setIsDeleteOpen(false)}>
+          <div className="space-y-4">
+            <div className="flex items-start gap-3 bg-danger/5 border border-danger/20 rounded-xl p-4">
+              <ShieldExclamationIcon className="h-6 w-6 text-danger shrink-0 mt-0.5" />
+              <div className="text-sm text-gray-600 dark:text-gray-300 space-y-2">
+                <p className="font-bold text-danger">Are you sure you want to delete your account?</p>
+                <p>This permanently closes your account — you won't be able to bet, deposit or withdraw anymore. Any remaining balance is forfeited, so withdraw your funds first.</p>
+                <p>This action cannot be undone.</p>
+              </div>
+            </div>
+            {wallet.balance > 0 && (
+              <p className="text-xs font-semibold text-amber-600 bg-amber-500/10 border border-amber-500/20 rounded-lg px-3 py-2">
+                You still have {format(wallet.balance)} in your wallet.
+              </p>
+            )}
+            <div className="flex gap-3">
+              <button
+                onClick={() => setIsDeleteOpen(false)}
+                disabled={deleting}
+                className="flex-1 py-3 rounded-xl font-bold text-sm border border-gray-200 dark:border-neutral-border text-gray-600 dark:text-gray-300 hover:bg-gray-50 dark:hover:bg-neutral-dark transition-colors"
+              >
+                Keep my account
+              </button>
+              <button
+                onClick={handleDeleteAccount}
+                disabled={deleting}
+                className="flex-1 py-3 rounded-xl font-bold text-sm bg-danger text-white hover:opacity-90 transition-opacity disabled:opacity-60"
+              >
+                {deleting ? 'Deleting…' : 'Delete account'}
+              </button>
+            </div>
+          </div>
+        </Modal>
+      )}
 
       {isTermsOpen && (
         <Modal title="Terms & Conditions" onClose={() => setIsTermsOpen(false)}>

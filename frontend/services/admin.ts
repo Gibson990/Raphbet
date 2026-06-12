@@ -41,6 +41,7 @@ export interface AdminUser {
   totalStaked: number;
   bets: number;
   suspended: boolean;
+  deleted?: boolean;
 }
 
 export interface AdminBet {
@@ -83,6 +84,7 @@ export interface WalletTransaction {
 export interface AdminUserWallet {
   balance: number;
   suspended: boolean;
+  deleted?: boolean;
   transactions: WalletTransaction[];
 }
 
@@ -106,7 +108,13 @@ async function adminPost<T>(path: string, key: string, body?: any): Promise<T> {
     headers,
     body: body !== undefined ? JSON.stringify(body) : undefined,
   });
-  if (!res.ok) throw new Error(`request failed (${res.status})`);
+  if (!res.ok) {
+    // Surface the server's reason (e.g. "adjustment would make the balance
+    // negative") instead of a bare status code.
+    let message = `request failed (${res.status})`;
+    try { const b = await res.json(); if (b?.error) message = b.error; } catch { /* ignore */ }
+    throw new Error(message);
+  }
   return res.json() as Promise<T>;
 }
 
@@ -132,6 +140,10 @@ export const setUserKyc = (key: string, deviceId: string, verified: boolean) =>
 // Returns updated wallet (includes suspended flag)
 export const setUserSuspended = (key: string, deviceId: string, suspended: boolean) =>
   adminPost<AdminUserWallet>(`/api/admin/users/${deviceId}/suspend`, key, { suspended });
+
+// Soft-deletes the account: record kept for audit, money operations blocked.
+export const deleteUserAccount = (key: string, deviceId: string) =>
+  adminPost<AdminUserWallet>(`/api/admin/users/${deviceId}/delete`, key);
 
 export const fetchAdminConfig = (key: string) => adminGet<AdminConfig>('/api/admin/config', key);
 export const saveAdminConfig = (key: string, config: Partial<AdminConfig>) =>

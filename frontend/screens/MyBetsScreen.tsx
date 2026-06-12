@@ -2,6 +2,7 @@ import React, { useState, useMemo } from 'react';
 import type { PlacedBet } from '../types';
 import { TicketIcon } from '../components/icons';
 import { useAppOutlet } from '../hooks/useAppOutlet';
+import { useAuth } from '../contexts/AuthContext';
 import { useCurrency } from '../contexts/CurrencyContext';
 import { downloadBetSlip } from '../services/receipt';
 
@@ -25,12 +26,12 @@ const BetStatusBadge: React.FC<BetStatusBadgeProps> = ({ status }) => {
   }
 };
 
-const BetHistoryCard: React.FC<{ bet: PlacedBet; onDownloadFail: () => void; onCashOut: (id: string) => Promise<void> }> = ({ bet, onDownloadFail, onCashOut }) => {
+const BetHistoryCard: React.FC<{ bet: PlacedBet; playerName?: string; onDownloadFail: () => void; onCashOut: (id: string) => Promise<void> }> = ({ bet, playerName, onDownloadFail, onCashOut }) => {
   const { format } = useCurrency();
   const [cashingOut, setCashingOut] = useState(false);
 
   const handleDownload = () => {
-    if (!downloadBetSlip(bet, format)) onDownloadFail();
+    if (!downloadBetSlip(bet, format, playerName)) onDownloadFail();
   };
 
   const doCashOut = async () => {
@@ -127,6 +128,7 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet; onDownloadFail: () => void; onC
 
 const MyBetsScreen: React.FC = () => {
   const { wallet, addToast } = useAppOutlet();
+  const { user } = useAuth();
   const { format } = useCurrency();
   const bets = wallet.placedBets;
   const [activeTab, setActiveTab] = useState<'active' | 'settled'>('active');
@@ -200,6 +202,7 @@ const MyBetsScreen: React.FC = () => {
               <BetHistoryCard
                 key={bet.id}
                 bet={bet}
+                playerName={user?.name}
                 onCashOut={handleCashOut}
                 onDownloadFail={() => addToast('Could not generate the receipt. Please try again.', 'error')}
               />

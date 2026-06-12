@@ -8,6 +8,7 @@ import TopUpModal from '../components/wallet/TopUpModal';
 import WithdrawModal from '../components/wallet/WithdrawModal';
 import { downloadTransactionReceipt } from '../services/receipt';
 import { fetchWithdrawals, type Withdrawal } from '../services/wallet';
+import { useAuth } from '../contexts/AuthContext';
 
 const CryptoBadge: React.FC<{ label: string }> = ({ label }) => (
   <div className="h-9 inline-flex items-center justify-center rounded-lg px-3 font-bold text-xs bg-gray-100 dark:bg-neutral-dark border border-gray-200 dark:border-neutral-border">
@@ -49,10 +50,10 @@ const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; 
   </div>
 );
 
-const TransactionRow: React.FC<{ transaction: Transaction; hidden: boolean; onDownloadFail: () => void }> = ({ transaction, hidden, onDownloadFail }) => {
+const TransactionRow: React.FC<{ transaction: Transaction; hidden: boolean; playerName?: string; onDownloadFail: () => void }> = ({ transaction, hidden, playerName, onDownloadFail }) => {
   const { format } = useCurrency();
   const isCredit = transaction.type === 'Payout' || transaction.type === 'Top-up';
-  const download = () => { if (!downloadTransactionReceipt(transaction, format)) onDownloadFail(); };
+  const download = () => { if (!downloadTransactionReceipt(transaction, format, playerName)) onDownloadFail(); };
   return (
     <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-neutral-border last:border-b-0 group">
       <div className="flex items-center gap-3 min-w-0">
@@ -85,6 +86,7 @@ const TransactionRow: React.FC<{ transaction: Transaction; hidden: boolean; onDo
 
 const WalletScreen: React.FC = () => {
   const { wallet, addToast } = useAppOutlet();
+  const { user } = useAuth();
   const { format, code } = useCurrency();
   const { balance, transactions, placedBets, topUpWallet, withdrawFromWallet } = wallet;
   const [isTopUpOpen, setTopUpOpen] = useState(false);
@@ -237,6 +239,7 @@ const WalletScreen: React.FC = () => {
                     key={t.id}
                     transaction={t}
                     hidden={hidden}
+                    playerName={user?.name}
                     onDownloadFail={() => addToast('Could not generate the receipt. Please try again.', 'error')}
                   />
                 ))}

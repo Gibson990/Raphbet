@@ -23,6 +23,7 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux.HandleFunc("POST /api/bets", h.placeBet)
 	mux.HandleFunc("POST /api/bets/{id}/cashout", h.cashOut)
 	mux.HandleFunc("GET /api/withdrawals", h.listWithdrawals)
+	mux.HandleFunc("POST /api/account/delete", h.deleteAccount)
 
 	// Customer support (registered users open + reply to their own tickets).
 	mux.HandleFunc("POST /api/support", h.createTicket)
@@ -49,6 +50,7 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux.HandleFunc("POST /api/admin/users/{deviceId}/balance", h.adminAdjustUserBalance)
 	mux.HandleFunc("POST /api/admin/users/{deviceId}/kyc", h.adminSetUserKyc)
 	mux.HandleFunc("POST /api/admin/users/{deviceId}/suspend", h.adminSetUserSuspended)
+	mux.HandleFunc("POST /api/admin/users/{deviceId}/delete", h.adminDeleteUser)
 	mux.HandleFunc("GET /api/admin/config", h.adminGetConfig)
 	mux.HandleFunc("POST /api/admin/config", h.adminSetConfig)
 	mux.HandleFunc("GET /api/admin/users/{deviceId}/wallet", h.adminGetUserWallet)

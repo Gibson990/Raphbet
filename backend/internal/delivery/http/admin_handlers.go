@@ -177,6 +177,20 @@ func (h *Handlers) adminSetUserSuspended(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, wallet)
 }
 
+// adminDeleteUser closes a player's account on their behalf (same soft delete
+// as the self-service route: record kept, money operations blocked).
+func (h *Handlers) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAdmin(w, r) {
+		return
+	}
+	wallet, err := h.betting.DeleteAccount(r.PathValue("deviceId"))
+	if err != nil {
+		bettingError(w, err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wallet)
+}
+
 func (h *Handlers) adminGetConfig(w http.ResponseWriter, r *http.Request) {
 	if !h.requireAdmin(w, r) {
 		return

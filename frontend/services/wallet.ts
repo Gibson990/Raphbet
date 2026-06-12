@@ -71,6 +71,9 @@ export const requestWithdrawal = (amount: number, address: string) =>
 
 export const fetchWithdrawals = () => req<Withdrawal[]>('/api/withdrawals');
 
+// Soft-deletes the signed-in player's account (record kept server-side).
+export const deleteMyAccount = () => req<{ deleted: boolean }>('/api/account/delete', { method: 'POST' });
+
 export const placeBets = (items: PlaceItem[]) =>
   req<{ bets: PlacedBet[]; wallet: WalletDTO }>('/api/bets', { method: 'POST', body: JSON.stringify({ items }) });
 

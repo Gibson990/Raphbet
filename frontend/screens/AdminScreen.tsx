@@ -43,7 +43,7 @@ import {
 import {
   fetchAdminStats, fetchAdminUsers, fetchAdminBets, fetchAdminWithdrawals,
   approveWithdrawal, rejectWithdrawal,
-  adjustUserBalance, setUserKyc, setUserSuspended,
+  adjustUserBalance, setUserKyc, setUserSuspended, deleteUserAccount,
   fetchAdminConfig, saveAdminConfig, fetchUserWallet, settleBet,
   type AdminStats, type AdminUser, type AdminBet, type AdminWithdrawal, type AdminConfig, type AdminUserWallet, type DailyStat
 } from '../services/admin';
@@ -369,6 +369,7 @@ const AdminScreen: React.FC = () => {
   const [adjustNote, setAdjustNote] = useState('');
   const [modalBusy, setModalBusy] = useState(false);
   const [modalTab, setModalTab] = useState<'overview' | 'bets' | 'transactions'>('overview');
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
 
   // Chart range — kept in a ref too so the 20s poll refetches the same window
   // without re-creating `load` (which would restart the polling effect).
@@ -457,6 +458,7 @@ const AdminScreen: React.FC = () => {
     setAdjustAmount('');
     setAdjustNote('');
     setModalTab('overview');
+    setConfirmingDelete(false);
     try {
       const w = await fetchUserWallet('', u.deviceId);
       setUserWallet(w);
@@ -478,8 +480,24 @@ const AdminScreen: React.FC = () => {
       setAdjustNote('');
       showToast('Balance updated successfully.');
       await load();
-    } catch {
-      showToast('Failed to adjust balance.', 'error');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to adjust balance.', 'error');
+    } finally {
+      setModalBusy(false);
+    }
+  };
+
+  const handleDeleteUser = async () => {
+    if (!selectedUser) return;
+    setModalBusy(true);
+    try {
+      await deleteUserAccount('', selectedUser.deviceId);
+      setSelectedUser(prev => prev ? { ...prev, deleted: true, suspended: true } : null);
+      setConfirmingDelete(false);
+      showToast('Account deleted. The record stays for the audit trail.');
+      await load();
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to delete account.', 'error');
     } finally {
       setModalBusy(false);
     }
@@ -1250,8 +1268,14 @@ const AdminScreen: React.FC = () => {
                         </span>
                       </td>
                       <td className="px-5 py-4 text-center">
-                        <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${u.suspended ? 'bg-danger/10 text-danger border-danger/20' : 'bg-success/10 text-success border-success/20'}`}>
-                          {u.suspended ? 'Suspended' : 'Active'}
+                        <span className={`px-2.5 py-0.5 text-[10px] font-bold rounded-full border ${
+                          u.deleted
+                            ? 'bg-gray-200 text-gray-500 border-gray-300 dark:bg-neutral-dark dark:text-gray-400 dark:border-neutral-border'
+                            : u.suspended
+                              ? 'bg-danger/10 text-danger border-danger/20'
+                              : 'bg-success/10 text-success border-success/20'
+                        }`}>
+                          {u.deleted ? 'Deleted' : u.suspended ? 'Suspended' : 'Active'}
                         </span>
                       </td>
                       <td className="px-5 py-4 text-right font-bold tabular-nums">{formatCurrency(u.totalStaked)}</td>
@@ -1529,8 +1553,12 @@ const AdminScreen: React.FC = () => {
               <div className="min-w-0">
                 <div className="flex items-center gap-2">
                   <h3 className="text-sm font-bold dark:text-white">Player Profile</h3>
-                  <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full ${selectedUser.suspended ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'}`}>
-                    {selectedUser.suspended ? 'SUSPENDED' : 'ACTIVE'}
+                  <span className={`px-2 py-0.5 text-[9px] font-bold rounded-full ${
+                    selectedUser.deleted
+                      ? 'bg-gray-200 text-gray-500 dark:bg-neutral-dark dark:text-gray-400'
+                      : selectedUser.suspended ? 'bg-danger/10 text-danger' : 'bg-success/10 text-success'
+                  }`}>
+                    {selectedUser.deleted ? 'DELETED' : selectedUser.suspended ? 'SUSPENDED' : 'ACTIVE'}
                   </span>
                 </div>
                 {selectedUser.email && <p className="text-[11px] font-semibold text-gray-500 dark:text-gray-400 mt-0.5 truncate max-w-[320px]">{selectedUser.email}</p>}
@@ -1609,22 +1637,53 @@ const AdminScreen: React.FC = () => {
               {/* ── Manage tab ── */}
               {modalTab === 'overview' && (
                 <div className="space-y-5">
+                  {selectedUser.deleted && (
+                    <div className="bg-gray-100 dark:bg-neutral-dark border border-gray-200 dark:border-neutral-border rounded-xl p-3.5 text-[11px] text-gray-500 dark:text-gray-400">
+                      This account is <span className="font-bold">deleted</span>. The record is kept for the audit trail; all actions are disabled and the player can no longer bet, deposit or withdraw.
+                    </div>
+                  )}
                   <div className="flex flex-wrap gap-2">
-                    <button onClick={toggleUserSuspension} disabled={modalBusy}
-                      className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${
+                    <button onClick={toggleUserSuspension} disabled={modalBusy || selectedUser.deleted}
+                      className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg border transition-all disabled:opacity-40 disabled:pointer-events-none ${
                         selectedUser.suspended ? 'bg-success/10 border-success/20 text-success hover:bg-success hover:text-white hover:border-transparent' : 'bg-danger/10 border-danger/20 text-danger hover:bg-danger hover:text-white hover:border-transparent'
                       }`}>
                       {selectedUser.suspended ? 'Activate Account' : 'Suspend Account'}
                     </button>
-                    <button onClick={toggleUserKyc} disabled={modalBusy}
-                      className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg border transition-all ${
+                    <button onClick={toggleUserKyc} disabled={modalBusy || selectedUser.deleted}
+                      className={`py-2 px-3 text-[10px] font-bold uppercase rounded-lg border transition-all disabled:opacity-40 disabled:pointer-events-none ${
                         selectedUser.verified ? 'bg-amber-500/10 border-amber-500/20 text-amber-600' : 'bg-success/10 border-success/20 text-success'
                       }`}>
                       {selectedUser.verified ? 'Revoke KYC' : 'Verify KYC'}
                     </button>
+                    {!selectedUser.deleted && (
+                      <button onClick={() => setConfirmingDelete(true)} disabled={modalBusy}
+                        className="py-2 px-3 text-[10px] font-bold uppercase rounded-lg border bg-transparent border-gray-200 dark:border-neutral-border text-gray-400 hover:bg-danger hover:text-white hover:border-transparent transition-all disabled:opacity-40">
+                        Delete Account
+                      </button>
+                    )}
                   </div>
 
+                  {confirmingDelete && (
+                    <div className="bg-danger/5 border border-danger/30 rounded-xl p-4 space-y-3">
+                      <p className="text-xs font-bold text-danger">Are you sure you want to delete this account?</p>
+                      <p className="text-[11px] text-gray-500 dark:text-gray-400">
+                        The player will be locked out permanently — no bets, deposits or withdrawals. The account record stays visible here for the audit trail. This cannot be undone.
+                      </p>
+                      <div className="flex gap-2">
+                        <button onClick={handleDeleteUser} disabled={modalBusy}
+                          className="bg-danger hover:opacity-90 text-white text-[10px] font-bold uppercase px-4 py-2 rounded-lg transition-all disabled:opacity-50">
+                          {modalBusy ? 'Deleting…' : 'Yes, delete account'}
+                        </button>
+                        <button onClick={() => setConfirmingDelete(false)} disabled={modalBusy}
+                          className="bg-transparent border border-gray-200 dark:border-neutral-border text-gray-500 dark:text-gray-400 text-[10px] font-bold uppercase px-4 py-2 rounded-lg transition-all">
+                          Cancel
+                        </button>
+                      </div>
+                    </div>
+                  )}
+
                   {/* Balance adjustment */}
+                  {!selectedUser.deleted && (
                   <form onSubmit={handleAdjustBalance} className="border border-gray-200 dark:border-neutral-border rounded-xl p-4 space-y-3">
                     <h4 className="text-xs font-bold dark:text-white">Adjust Wallet Balance</h4>
                     <div className="grid grid-cols-2 gap-3">
@@ -1646,6 +1705,7 @@ const AdminScreen: React.FC = () => {
                       {modalBusy ? 'Processing…' : 'Apply Delta'}
                     </button>
                   </form>
+                  )}
 
                   <div className="border border-gray-200 dark:border-neutral-border rounded-xl p-4 text-[11px] text-gray-400 space-y-1.5">
                     <p><span className="font-bold text-gray-500 dark:text-gray-300">Total staked:</span> {formatCurrency(selectedUser.totalStaked)} across {selectedUser.bets} bet{selectedUser.bets === 1 ? '' : 's'}</p>
@@ -1679,7 +1739,7 @@ const AdminScreen: React.FC = () => {
                             {b.payout > 0 && <span className="text-success font-bold ml-2">→ {formatCurrency(b.payout)}</span>}
                           </p>
                           <div className="flex items-center gap-1.5">
-                            {b.status === 'PENDING' && (
+                            {b.status === 'PENDING' && !selectedUser.deleted && (
                               <>
                                 <button onClick={() => handleSettleBet(b.id, 'WON')} className="bg-success/10 hover:bg-success text-success hover:text-white px-2 py-1 rounded text-[9px] font-bold transition-all">W</button>
                                 <button onClick={() => handleSettleBet(b.id, 'LOST')} className="bg-danger/10 hover:bg-danger text-danger hover:text-white px-2 py-1 rounded text-[9px] font-bold transition-all">L</button>

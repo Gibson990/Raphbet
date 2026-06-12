@@ -125,6 +125,8 @@ var (
 	ErrStakeRange      = errors.New("stake is outside the allowed limits")
 	ErrWithdrawalRange = errors.New("withdrawal amount is outside the allowed limits")
 	ErrSuspended       = errors.New("account suspended")
+	ErrDeleted         = errors.New("account deleted")
+	ErrAdjustNegative  = errors.New("adjustment would make the balance negative")
 )
 
 // lock serialises all balance mutations for one device so concurrent requests
@@ -529,14 +531,36 @@ func (s *Service) SetLimits(limits Limits) {
 }
 
 // AdjustBalance updates a device/user's wallet balance directly (admin option).
+// A delta that would take the balance below zero is rejected so a stale figure
+// in the admin panel can't push a player negative.
 func (s *Service) AdjustBalance(deviceID string, amount domain.Money, description string) (*domain.Wallet, error) {
 	defer s.lock(deviceID)()
 	w, err := s.Wallet(deviceID)
 	if err != nil {
 		return nil, err
 	}
+	if w.Deleted {
+		return nil, ErrDeleted
+	}
+	if w.Balance+amount < 0 {
+		return nil, ErrAdjustNegative
+	}
 	w.Balance += amount
 	s.addTx(w, domain.TxTopUp, amount, description)
+	return w, s.wallets.Save(w)
+}
+
+// DeleteAccount closes a player's account (self-service or admin). The wallet
+// record stays for the audit trail; the flags block all further money
+// operations and the admin UI disables its actions.
+func (s *Service) DeleteAccount(deviceID string) (*domain.Wallet, error) {
+	defer s.lock(deviceID)()
+	w, err := s.Wallet(deviceID)
+	if err != nil {
+		return nil, err
+	}
+	w.Deleted = true
+	w.Suspended = true // reuse the existing guards on bets/top-ups/withdrawals
 	return w, s.wallets.Save(w)
 }
 

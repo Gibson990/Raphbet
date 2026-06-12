@@ -34,6 +34,9 @@ type Wallet struct {
 	Balance      Money         `json:"balance"`
 	Transactions []Transaction `json:"transactions"`
 	Suspended    bool          `json:"suspended"`
+	// Deleted marks an account closed by the player (or an admin). The record
+	// is kept for the audit trail; all money operations stay blocked.
+	Deleted bool `json:"deleted"`
 }
 
 // BetStatus is the lifecycle state of a placed bet.

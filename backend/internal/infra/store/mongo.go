@@ -88,6 +88,7 @@ type walletDoc struct {
 	Balance      domain.Money         `bson:"balance"`
 	Transactions []domain.Transaction `bson:"transactions"`
 	Suspended    bool                 `bson:"suspended"`
+	Deleted      bool                 `bson:"deleted,omitempty"`
 }
 
 type betDoc struct {
@@ -153,14 +154,14 @@ func (s *MongoStore) Get(deviceID string) (*domain.Wallet, error) {
 	if doc.Transactions == nil {
 		doc.Transactions = []domain.Transaction{}
 	}
-	return &domain.Wallet{DeviceID: doc.DeviceID, Email: doc.Email, Balance: doc.Balance, Transactions: doc.Transactions, Suspended: doc.Suspended}, nil
+	return &domain.Wallet{DeviceID: doc.DeviceID, Email: doc.Email, Balance: doc.Balance, Transactions: doc.Transactions, Suspended: doc.Suspended, Deleted: doc.Deleted}, nil
 }
 
 func (s *MongoStore) Save(w *domain.Wallet) error {
 	ctx, cancel := context.WithTimeout(context.Background(), opTimeout)
 	defer cancel()
 
-	doc := walletDoc{DeviceID: w.DeviceID, Email: w.Email, Balance: w.Balance, Transactions: w.Transactions, Suspended: w.Suspended}
+	doc := walletDoc{DeviceID: w.DeviceID, Email: w.Email, Balance: w.Balance, Transactions: w.Transactions, Suspended: w.Suspended, Deleted: w.Deleted}
 	_, err := s.wallets.ReplaceOne(ctx, bson.M{"_id": w.DeviceID}, doc, options.Replace().SetUpsert(true))
 	return err
 }
@@ -184,7 +185,7 @@ func (s *MongoStore) AllWallets() ([]*domain.Wallet, error) {
 		if d.Transactions == nil {
 			d.Transactions = []domain.Transaction{}
 		}
-		out = append(out, &domain.Wallet{DeviceID: d.DeviceID, Email: d.Email, Balance: d.Balance, Transactions: d.Transactions, Suspended: d.Suspended})
+		out = append(out, &domain.Wallet{DeviceID: d.DeviceID, Email: d.Email, Balance: d.Balance, Transactions: d.Transactions, Suspended: d.Suspended, Deleted: d.Deleted})
 	}
 	return out, cur.Err()
 }

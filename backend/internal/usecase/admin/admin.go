@@ -60,6 +60,7 @@ type UserRow struct {
 	TotalStaked domain.Money `json:"totalStaked"`
 	Bets        int          `json:"bets"`
 	Suspended   bool         `json:"suspended"`
+	Deleted     bool         `json:"deleted"`
 }
 
 // BetRow is one row of the bets table.
@@ -215,6 +216,7 @@ func (s *Service) Users() ([]UserRow, error) {
 			TotalStaked: stakedBy[w.DeviceID],
 			Bets:        countBy[w.DeviceID],
 			Suspended:   w.Suspended,
+			Deleted:     w.Deleted,
 		})
 	}
 	sort.Slice(rows, func(i, j int) bool { return rows[i].TotalStaked > rows[j].TotalStaked })
