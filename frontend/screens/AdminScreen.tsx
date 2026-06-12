@@ -43,7 +43,7 @@ import {
 import {
   fetchAdminStats, fetchAdminUsers, fetchAdminBets, fetchAdminWithdrawals,
   approveWithdrawal, rejectWithdrawal,
-  adjustUserBalance, setUserKyc, setUserSuspended, deleteUserAccount,
+  adjustUserBalance, setUserKyc, setUserSuspended, deleteUserAccount, exportWithdrawals,
   fetchAdminConfig, saveAdminConfig, fetchUserWallet, settleBet,
   type AdminStats, type AdminUser, type AdminBet, type AdminWithdrawal, type AdminConfig, type AdminUserWallet, type DailyStat
 } from '../services/admin';
@@ -487,20 +487,31 @@ const AdminScreen: React.FC = () => {
     }
   };
 
-  // NOWPayments mass-payout CSV (Currency,Address,Memo,Amount) built from the
-  // pending withdrawal queue, ready to upload on their dashboard. Memo stays
-  // empty (TRC-20 has none); amount is in USDT units.
-  const exportPayoutsCsv = () => {
-    if (withdrawals.length === 0) return;
-    const rows = withdrawals.map(wd => `usdttrc20,${wd.address},,${(wd.amount / 100).toFixed(2)}`);
-    const csv = ['Currency,Address,Memo,Amount', ...rows].join('\n');
-    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = `raphbet_payouts_${new Date().toISOString().slice(0, 10)}.csv`;
-    a.click();
-    URL.revokeObjectURL(url);
-    showToast(`Exported ${withdrawals.length} pending payout${withdrawals.length === 1 ? '' : 's'} for NOWPayments.`);
+  // NOWPayments mass-payout CSV (Currency,Address,Memo,Amount). The server
+  // marks each withdrawal as exported and only ever returns it once, so the
+  // same request can't be paid in two batches. Memo stays empty (TRC-20 has
+  // none); amount is in USDT units.
+  const exportPayoutsCsv = async () => {
+    try {
+      const batch = await exportWithdrawals('');
+      if (!batch || batch.length === 0) {
+        showToast('Nothing new to export — all pending withdrawals are already in a batch.', 'error');
+        await load();
+        return;
+      }
+      const rows = batch.map(wd => `usdttrc20,${wd.address},,${(wd.amount / 100).toFixed(2)}`);
+      const csv = ['Currency,Address,Memo,Amount', ...rows].join('\n');
+      const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `raphbet_payouts_${new Date().toISOString().slice(0, 10)}.csv`;
+      a.click();
+      URL.revokeObjectURL(url);
+      showToast(`Exported ${batch.length} payout${batch.length === 1 ? '' : 's'} — pay this batch in NOWPayments, then approve each here.`);
+      await load(); // refresh so the "In batch" badges appear
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Export failed.', 'error');
+    }
   };
 
   const handleDeleteUser = async () => {
@@ -1430,7 +1441,17 @@ const AdminScreen: React.FC = () => {
                 <tbody className="divide-y divide-gray-100 dark:divide-neutral-border">
                   {withdrawals.map(wd => (
                     <tr key={wd.id} className="hover:bg-gray-50/50 dark:hover:bg-neutral-dark/10 transition-colors">
-                      <td className="px-5 py-4 text-gray-400 whitespace-nowrap">{new Date(wd.createdDate).toLocaleString()}</td>
+                      <td className="px-5 py-4 text-gray-400 whitespace-nowrap">
+                        {new Date(wd.createdDate).toLocaleString()}
+                        {wd.exportedDate && (
+                          <span
+                            className="block mt-1 w-max px-2 py-0.5 text-[9px] font-bold rounded-full bg-blue-500/10 text-blue-600 dark:text-blue-400 border border-blue-500/20"
+                            title={`Included in the payout batch exported ${new Date(wd.exportedDate).toLocaleString()} — pay it in NOWPayments, then approve.`}
+                          >
+                            In batch · {new Date(wd.exportedDate).toLocaleDateString()}
+                          </span>
+                        )}
+                      </td>
                       <td className="px-5 py-4 font-mono text-[11px] select-all break-all max-w-[240px]">{wd.address}</td>
                       <td className="px-5 py-4 text-right font-bold tabular-nums">{formatCurrency(wd.amount)}</td>
                       <td className="px-5 py-4 text-center whitespace-nowrap">

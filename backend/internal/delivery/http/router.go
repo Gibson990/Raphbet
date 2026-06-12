@@ -45,6 +45,7 @@ func NewRouter(h *Handlers, allowedOrigins []string, rateLimitPerMin int) http.H
 	mux.HandleFunc("GET /api/admin/users", h.adminUsers)
 	mux.HandleFunc("GET /api/admin/bets", h.adminBets)
 	mux.HandleFunc("GET /api/admin/withdrawals", h.adminWithdrawals)
+	mux.HandleFunc("POST /api/admin/withdrawals/export", h.adminExportWithdrawals)
 	mux.HandleFunc("POST /api/admin/withdrawals/{id}/approve", h.adminApproveWithdrawal)
 	mux.HandleFunc("POST /api/admin/withdrawals/{id}/reject", h.adminRejectWithdrawal)
 	mux.HandleFunc("POST /api/admin/users/{deviceId}/balance", h.adminAdjustUserBalance)

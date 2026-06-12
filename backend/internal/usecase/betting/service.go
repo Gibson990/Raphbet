@@ -86,6 +86,7 @@ type Service struct {
 	limits         Limits
 	limitsMu       sync.RWMutex
 	locks          sync.Map           // deviceID -> *sync.Mutex, serialises wallet mutations
+	exportMu       sync.Mutex         // serialises payout-batch exports across devices
 	odds           OddsResolver       // nil in tests; set in production to validate prices
 	matchState     MatchStateResolver // nil disables cash-out
 }
@@ -207,6 +208,31 @@ func (s *Service) ApproveWithdrawal(id string) (*domain.Withdrawal, error) {
 	wd.Status = domain.WdPaid
 	wd.Note = "approved"
 	return wd, s.withdrawals.UpdateWithdrawal(wd)
+}
+
+// ExportPendingWithdrawals returns pending withdrawals that have not been
+// included in a payout batch yet and marks them exported. A request can only
+// ever be exported once, so the same withdrawal can't be paid in two batches.
+func (s *Service) ExportPendingWithdrawals() ([]*domain.Withdrawal, error) {
+	s.exportMu.Lock()
+	defer s.exportMu.Unlock()
+	pending, err := s.withdrawals.ListPendingWithdrawals()
+	if err != nil {
+		return nil, err
+	}
+	now := time.Now()
+	out := []*domain.Withdrawal{}
+	for _, wd := range pending {
+		if wd.ExportedDate != nil {
+			continue
+		}
+		wd.ExportedDate = &now
+		if err := s.withdrawals.UpdateWithdrawal(wd); err != nil {
+			return nil, err
+		}
+		out = append(out, wd)
+	}
+	return out, nil
 }
 
 // RejectWithdrawal refunds the held funds and marks the request rejected.

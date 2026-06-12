@@ -279,21 +279,22 @@ func (s *MongoStore) SessionForDevice(deviceID string) (string, error) {
 // ---- WithdrawalRepository ----
 
 type withdrawalDoc struct {
-	ID          string                  `bson:"_id"`
-	DeviceID    string                  `bson:"deviceId"`
-	Amount      domain.Money            `bson:"amount"`
-	Address     string                  `bson:"address"`
-	Status      domain.WithdrawalStatus `bson:"status"`
-	CreatedDate time.Time               `bson:"createdDate"`
-	Note        string                  `bson:"note"`
+	ID           string                  `bson:"_id"`
+	DeviceID     string                  `bson:"deviceId"`
+	Amount       domain.Money            `bson:"amount"`
+	Address      string                  `bson:"address"`
+	Status       domain.WithdrawalStatus `bson:"status"`
+	CreatedDate  time.Time               `bson:"createdDate"`
+	Note         string                  `bson:"note"`
+	ExportedDate *time.Time              `bson:"exportedDate,omitempty"`
 }
 
 func toWithdrawalDoc(w *domain.Withdrawal) withdrawalDoc {
-	return withdrawalDoc{ID: w.ID, DeviceID: w.DeviceID, Amount: w.Amount, Address: w.Address, Status: w.Status, CreatedDate: w.CreatedDate, Note: w.Note}
+	return withdrawalDoc{ID: w.ID, DeviceID: w.DeviceID, Amount: w.Amount, Address: w.Address, Status: w.Status, CreatedDate: w.CreatedDate, Note: w.Note, ExportedDate: w.ExportedDate}
 }
 
 func (d withdrawalDoc) toDomain() *domain.Withdrawal {
-	return &domain.Withdrawal{ID: d.ID, DeviceID: d.DeviceID, Amount: d.Amount, Address: d.Address, Status: d.Status, CreatedDate: d.CreatedDate, Note: d.Note}
+	return &domain.Withdrawal{ID: d.ID, DeviceID: d.DeviceID, Amount: d.Amount, Address: d.Address, Status: d.Status, CreatedDate: d.CreatedDate, Note: d.Note, ExportedDate: d.ExportedDate}
 }
 
 func (s *MongoStore) AddWithdrawal(w *domain.Withdrawal) error {
@@ -475,4 +476,3 @@ func (s *MongoStore) SaveConfig(cfg *domain.BookmakerConfig) error {
 	_, err := s.config.ReplaceOne(ctx, bson.M{"_id": "global"}, cfg, options.Replace().SetUpsert(true))
 	return err
 }
-

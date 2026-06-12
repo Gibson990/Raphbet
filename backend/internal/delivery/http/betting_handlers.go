@@ -23,6 +23,7 @@ type BettingService interface {
 	RequestWithdrawal(deviceID string, amount domain.Money, address string) (*domain.Withdrawal, error)
 	Withdrawals(deviceID string) ([]*domain.Withdrawal, error)
 	PendingWithdrawals() ([]*domain.Withdrawal, error)
+	ExportPendingWithdrawals() ([]*domain.Withdrawal, error)
 	ApproveWithdrawal(id string) (*domain.Withdrawal, error)
 	RejectWithdrawal(id, reason string) (*domain.Withdrawal, error)
 	Limits() betting.Limits

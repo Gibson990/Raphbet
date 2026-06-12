@@ -62,6 +62,7 @@ export interface AdminWithdrawal {
   address: string;
   status: 'PENDING' | 'PAID' | 'REJECTED';
   createdDate: string;
+  exportedDate?: string; // set once included in a payout batch — never exported twice
 }
 
 export interface AdminConfig {
@@ -127,6 +128,11 @@ export const fetchAdminWithdrawals = (key: string) => adminGet<AdminWithdrawal[]
 
 export const approveWithdrawal = (key: string, id: string) =>
   adminPost<unknown>(`/api/admin/withdrawals/${id}/approve`, key);
+
+// Marks all not-yet-exported pending withdrawals as exported and returns just
+// those — guaranteeing a withdrawal can never appear in two payout batches.
+export const exportWithdrawals = (key: string) =>
+  adminPost<AdminWithdrawal[]>('/api/admin/withdrawals/export', key);
 export const rejectWithdrawal = (key: string, id: string) =>
   adminPost<unknown>(`/api/admin/withdrawals/${id}/reject`, key);
 

@@ -94,6 +94,10 @@ type Withdrawal struct {
 	Status      WithdrawalStatus `json:"status"`
 	CreatedDate time.Time        `json:"createdDate"`
 	Note        string           `json:"note,omitempty"` // payout id or reason
+	// ExportedDate is set when the request is included in a payout batch
+	// (mass-payout CSV); a request can only ever be exported once so the same
+	// withdrawal can't be paid out in two batches.
+	ExportedDate *time.Time `json:"exportedDate,omitempty"`
 }
 
 // WithdrawalRepository persists withdrawal requests. (Distinct method names so a

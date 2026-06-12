@@ -177,6 +177,20 @@ func (h *Handlers) adminSetUserSuspended(w http.ResponseWriter, r *http.Request)
 	writeJSON(w, http.StatusOK, wallet)
 }
 
+// adminExportWithdrawals marks all not-yet-exported pending withdrawals as
+// exported and returns them — the one-shot source for a payout batch CSV.
+func (h *Handlers) adminExportWithdrawals(w http.ResponseWriter, r *http.Request) {
+	if !h.requireAdmin(w, r) {
+		return
+	}
+	wds, err := h.betting.ExportPendingWithdrawals()
+	if err != nil {
+		writeError(w, http.StatusInternalServerError, "failed to export withdrawals", err)
+		return
+	}
+	writeJSON(w, http.StatusOK, wds)
+}
+
 // adminDeleteUser closes a player's account on their behalf (same soft delete
 // as the self-service route: record kept, money operations blocked).
 func (h *Handlers) adminDeleteUser(w http.ResponseWriter, r *http.Request) {
