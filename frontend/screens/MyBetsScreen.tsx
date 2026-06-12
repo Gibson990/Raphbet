@@ -127,6 +127,7 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet; onDownloadFail: () => void; onC
 
 const MyBetsScreen: React.FC = () => {
   const { wallet, addToast } = useAppOutlet();
+  const { format } = useCurrency();
   const bets = wallet.placedBets;
   const [activeTab, setActiveTab] = useState<'active' | 'settled'>('active');
 
@@ -135,32 +136,57 @@ const MyBetsScreen: React.FC = () => {
     addToast(res.message, res.success ? 'success' : 'error');
   };
 
-  const filteredBets = useMemo(() => {
-    const sortedBets = [...bets].sort((a, b) => new Date(b.placedDate).getTime() - new Date(a.placedDate).getTime());
-    if (activeTab === 'active') {
-      return sortedBets.filter(b => b.status === 'PENDING');
-    }
-    return sortedBets.filter(b => b.status === 'WON' || b.status === 'LOST' || b.status === 'CASHED_OUT');
-  }, [bets, activeTab]);
+  const { activeBets, settledBets } = useMemo(() => {
+    const sorted = [...bets].sort((a, b) => new Date(b.placedDate).getTime() - new Date(a.placedDate).getTime());
+    return {
+      activeBets: sorted.filter(b => b.status === 'PENDING'),
+      settledBets: sorted.filter(b => b.status === 'WON' || b.status === 'LOST' || b.status === 'CASHED_OUT'),
+    };
+  }, [bets]);
+
+  const filteredBets = activeTab === 'active' ? activeBets : settledBets;
+
+  // Summary of what's riding right now: total staked and what it returns if everything lands.
+  const activeStake = useMemo(() => activeBets.reduce((s, b) => s + b.wager, 0), [activeBets]);
+  const activeReturn = useMemo(() => activeBets.reduce((s, b) => {
+    const legs = b.selections ?? [b.selection];
+    const odds = b.isMulti ? (b.multiplier ?? legs.reduce((p, l) => p * l.odds, 1)) : b.selection.odds;
+    return s + b.wager * odds * (1 + (b.winBoost ?? 0));
+  }, 0), [activeBets]);
 
   return (
     <div className="py-4">
-      <h1 className="text-2xl sm:text-3xl font-bold mb-4">My Bets</h1>
-      
+      <h1 className="text-2xl sm:text-3xl font-extrabold mb-4">My Bets</h1>
+
       <div className="flex border-b border-gray-200 dark:border-gray-700 mb-4">
-        <button 
-          onClick={() => setActiveTab('active')}
-          className={`py-2 px-4 font-semibold ${activeTab === 'active' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}`}
-        >
-          Active
-        </button>
-        <button 
-          onClick={() => setActiveTab('settled')}
-          className={`py-2 px-4 font-semibold ${activeTab === 'settled' ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}`}
-        >
-          Settled
-        </button>
+        {([['active', activeBets.length], ['settled', settledBets.length]] as const).map(([tab, count]) => (
+          <button
+            key={tab}
+            onClick={() => setActiveTab(tab)}
+            className={`py-2 px-4 font-semibold capitalize ${activeTab === tab ? 'text-primary border-b-2 border-primary' : 'text-gray-500 dark:text-gray-400'}`}
+          >
+            {tab}
+            {count > 0 && (
+              <span className={`ml-1.5 inline-flex items-center justify-center min-w-5 h-5 px-1.5 text-xs rounded-full ${activeTab === tab ? 'bg-primary text-white' : 'bg-gray-200 dark:bg-neutral-dark text-gray-500 dark:text-gray-400'}`}>
+                {count}
+              </span>
+            )}
+          </button>
+        ))}
       </div>
+
+      {activeTab === 'active' && activeBets.length > 0 && (
+        <div className="grid grid-cols-2 gap-3 mb-4">
+          <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-xl p-3 text-center">
+            <p className="text-lg font-extrabold tabular-nums">{format(activeStake)}</p>
+            <p className="text-[11px] text-gray-400 uppercase font-semibold">Total staked</p>
+          </div>
+          <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-xl p-3 text-center">
+            <p className="text-lg font-extrabold tabular-nums text-success">{format(activeReturn)}</p>
+            <p className="text-[11px] text-gray-400 uppercase font-semibold">Potential return</p>
+          </div>
+        </div>
+      )}
 
       {filteredBets.length === 0 ? (
          <div className="text-center text-gray-500 dark:text-gray-400 py-10 flex flex-col items-center space-y-4">

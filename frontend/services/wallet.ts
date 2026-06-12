@@ -69,6 +69,8 @@ export interface Withdrawal {
 export const requestWithdrawal = (amount: number, address: string) =>
   req<Withdrawal>('/api/wallet/withdraw', { method: 'POST', body: JSON.stringify({ amount, address }) });
 
+export const fetchWithdrawals = () => req<Withdrawal[]>('/api/withdrawals');
+
 export const placeBets = (items: PlaceItem[]) =>
   req<{ bets: PlacedBet[]; wallet: WalletDTO }>('/api/bets', { method: 'POST', body: JSON.stringify({ items }) });
 

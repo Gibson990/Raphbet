@@ -27,8 +27,19 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
     const maxUsd = Math.min(balance, limits.maxWithdrawal) / 100;
     const inRange = cents >= limits.minWithdrawal && cents <= Math.min(balance, limits.maxWithdrawal);
 
+    // TRON (TRC-20) addresses are base58, start with "T", 34 chars. A wrong
+    // address means lost funds, so block submission on an obvious mismatch.
+    const trimmedAddress = address.trim();
+    const addressValid = /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmedAddress);
+    const showAddressError = trimmedAddress.length > 0 && !addressValid;
+
+    const setPercent = (pct: number) => {
+        const target = Math.floor((maxUsd * pct) / 100 * 100) / 100; // 2dp, never above max
+        setAmount(target);
+    };
+
     const handleSubmit = async () => {
-        if (!address.trim()) { addToast('Enter your USDT (TRC-20) wallet address.', 'error'); return; }
+        if (!addressValid) { addToast('Enter a valid USDT (TRC-20) wallet address.', 'error'); return; }
         if (!inRange) { addToast(`Amount must be between ${usd(limits.minWithdrawal)} and ${usd(Math.min(balance, limits.maxWithdrawal))}.`, 'error'); return; }
         setSubmitting(true);
         const result = await onWithdraw(cents, address.trim());
@@ -72,6 +83,16 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
                         placeholder="0.00"
                         className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-border rounded-md focus:ring-primary focus:border-primary bg-transparent"
                     />
+                    <div className="grid grid-cols-4 gap-2 mt-2">
+                        {[25, 50, 75].map(pct => (
+                            <button key={pct} onClick={() => setPercent(pct)} className="bg-gray-200 dark:bg-neutral-dark text-sm rounded-md py-1.5 hover:bg-primary hover:text-white transition-colors">
+                                {pct}%
+                            </button>
+                        ))}
+                        <button onClick={() => setPercent(100)} className="bg-gray-200 dark:bg-neutral-dark text-sm font-semibold rounded-md py-1.5 hover:bg-primary hover:text-white transition-colors">
+                            Max
+                        </button>
+                    </div>
                     {showConverted && cents > 0 && (
                         <p className="text-xs text-gray-400 mt-1">≈ <span className="font-semibold">{format(cents)}</span> in {code}</p>
                     )}
@@ -83,12 +104,15 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         placeholder="T..."
-                        className="w-full px-4 py-2 border border-gray-300 dark:border-neutral-border rounded-md focus:ring-primary focus:border-primary bg-transparent font-mono text-sm"
+                        className={`w-full px-4 py-2 border rounded-md focus:ring-primary focus:border-primary bg-transparent font-mono text-sm ${showAddressError ? 'border-danger' : 'border-gray-300 dark:border-neutral-border'}`}
                     />
+                    {showAddressError && (
+                        <p className="text-xs text-danger mt-1">That doesn't look like a TRC-20 address — it should start with "T" and be 34 characters.</p>
+                    )}
                 </div>
                 <button
                     onClick={handleSubmit}
-                    disabled={!inRange || !address || submitting}
+                    disabled={!inRange || !addressValid || submitting}
                     className="w-full bg-primary text-white font-bold py-3 rounded-xl hover:bg-primary-dark transition-colors disabled:bg-gray-400"
                 >
                     {submitting ? 'Requesting…' : `Withdraw $${amount > 0 ? amount.toFixed(2) : '0.00'}`}

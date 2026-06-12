@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { ChevronUpIcon, ChevronDownIcon, WalletIcon, LockIcon } from '../components/icons';
+import React, { useState, useEffect, useCallback, useMemo } from 'react';
+import { ChevronUpIcon, ChevronDownIcon, WalletIcon, LockIcon, EyeIcon, EyeSlashIcon, ClockIcon, TicketIcon } from '../components/icons';
 import type { Transaction } from '../types';
 import { useAppOutlet } from '../hooks/useAppOutlet';
 import { useCurrency } from '../contexts/CurrencyContext';
@@ -7,6 +7,7 @@ import { CurrencySelect } from '../components/CurrencySelect';
 import TopUpModal from '../components/wallet/TopUpModal';
 import WithdrawModal from '../components/wallet/WithdrawModal';
 import { downloadTransactionReceipt } from '../services/receipt';
+import { fetchWithdrawals, type Withdrawal } from '../services/wallet';
 
 const CryptoBadge: React.FC<{ label: string }> = ({ label }) => (
   <div className="h-9 inline-flex items-center justify-center rounded-lg px-3 font-bold text-xs bg-gray-100 dark:bg-neutral-dark border border-gray-200 dark:border-neutral-border">
@@ -16,7 +17,39 @@ const CryptoBadge: React.FC<{ label: string }> = ({ label }) => (
 
 const usdt = (cents: number) => (cents / 100).toFixed(2);
 
-const TransactionRow: React.FC<{ transaction: Transaction; onDownloadFail: () => void }> = ({ transaction, onDownloadFail }) => {
+const HIDDEN = '••••••';
+
+type TxFilter = 'all' | 'deposits' | 'withdrawals' | 'wagers' | 'payouts';
+
+const TX_FILTERS: { key: TxFilter; label: string; types: Transaction['type'][] }[] = [
+  { key: 'all', label: 'All', types: ['Wager', 'Payout', 'Top-up', 'Withdrawal'] },
+  { key: 'deposits', label: 'Deposits', types: ['Top-up'] },
+  { key: 'payouts', label: 'Payouts', types: ['Payout'] },
+  { key: 'wagers', label: 'Wagers', types: ['Wager'] },
+  { key: 'withdrawals', label: 'Withdrawals', types: ['Withdrawal'] },
+];
+
+const WithdrawalStatusBadge: React.FC<{ status: Withdrawal['status'] }> = ({ status }) => {
+  const map = {
+    PENDING: 'bg-amber-100 text-amber-800 dark:bg-amber-900/40 dark:text-amber-300',
+    PAID: 'bg-green-100 text-green-800 dark:bg-green-900/40 dark:text-green-300',
+    REJECTED: 'bg-red-100 text-red-800 dark:bg-red-900/40 dark:text-red-300',
+  } as const;
+  const label = { PENDING: 'Pending review', PAID: 'Paid', REJECTED: 'Rejected' }[status];
+  return <span className={`px-2.5 py-0.5 text-xs font-semibold rounded-full whitespace-nowrap ${map[status]}`}>{label}</span>;
+};
+
+const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; hint?: string }> = ({ icon, label, value, hint }) => (
+  <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-3 sm:p-3.5 flex items-center gap-3 min-w-0 text-center sm:text-left" title={hint}>
+    <div className="h-9 w-9 rounded-xl bg-primary/10 text-primary hidden sm:flex items-center justify-center shrink-0">{icon}</div>
+    <div className="min-w-0 w-full">
+      <p className="text-sm font-extrabold tabular-nums truncate">{value}</p>
+      <p className="text-[10px] sm:text-[11px] text-gray-400 font-semibold uppercase truncate">{label}</p>
+    </div>
+  </div>
+);
+
+const TransactionRow: React.FC<{ transaction: Transaction; hidden: boolean; onDownloadFail: () => void }> = ({ transaction, hidden, onDownloadFail }) => {
   const { format } = useCurrency();
   const isCredit = transaction.type === 'Payout' || transaction.type === 'Top-up';
   const download = () => { if (!downloadTransactionReceipt(transaction, format)) onDownloadFail(); };
@@ -33,7 +66,7 @@ const TransactionRow: React.FC<{ transaction: Transaction; onDownloadFail: () =>
       </div>
       <div className="flex items-center gap-2 shrink-0">
         <p className={`font-bold text-sm tabular-nums ${isCredit ? 'text-success' : 'text-danger'}`}>
-          {isCredit ? '+' : ''}{format(transaction.amount)}
+          {hidden ? HIDDEN : <>{isCredit ? '+' : '−'}{format(transaction.amount)}</>}
         </p>
         <button
           onClick={download}
@@ -53,10 +86,42 @@ const TransactionRow: React.FC<{ transaction: Transaction; onDownloadFail: () =>
 const WalletScreen: React.FC = () => {
   const { wallet, addToast } = useAppOutlet();
   const { format, code } = useCurrency();
-  const { balance, transactions, topUpWallet, withdrawFromWallet } = wallet;
+  const { balance, transactions, placedBets, topUpWallet, withdrawFromWallet } = wallet;
   const [isTopUpOpen, setTopUpOpen] = useState(false);
   const [isWithdrawOpen, setWithdrawOpen] = useState(false);
   const [visibleTx, setVisibleTx] = useState(8);
+  const [txFilter, setTxFilter] = useState<TxFilter>('all');
+  const [withdrawals, setWithdrawals] = useState<Withdrawal[]>([]);
+  const [hidden, setHidden] = useState(() => localStorage.getItem('raphbet.hideBalance') === '1');
+
+  const toggleHidden = () => {
+    setHidden(h => {
+      localStorage.setItem('raphbet.hideBalance', h ? '0' : '1');
+      return !h;
+    });
+  };
+
+  const loadWithdrawals = useCallback(() => {
+    fetchWithdrawals()
+      .then(w => setWithdrawals((w ?? []).sort((a, b) => new Date(b.createdDate).getTime() - new Date(a.createdDate).getTime())))
+      .catch(() => { /* keep whatever we have */ });
+  }, []);
+
+  useEffect(() => { loadWithdrawals(); }, [loadWithdrawals]);
+
+  // In play: stakes currently riding on open bets. Pending payout: withdrawals held for review.
+  const inPlay = useMemo(() => placedBets.filter(b => b.status === 'PENDING').reduce((s, b) => s + b.wager, 0), [placedBets]);
+  const pendingWithdrawal = useMemo(() => withdrawals.filter(w => w.status === 'PENDING').reduce((s, w) => s + w.amount, 0), [withdrawals]);
+  const totalDeposited = useMemo(() => transactions.filter(t => t.type === 'Top-up').reduce((s, t) => s + t.amount, 0), [transactions]);
+
+  const filteredTx = useMemo(() => {
+    const types = TX_FILTERS.find(f => f.key === txFilter)!.types;
+    return transactions.filter(t => types.includes(t.type));
+  }, [transactions, txFilter]);
+
+  const setFilter = (f: TxFilter) => { setTxFilter(f); setVisibleTx(8); };
+
+  const money = (cents: number) => (hidden ? HIDDEN : format(cents));
 
   return (
     <>
@@ -72,13 +137,23 @@ const WalletScreen: React.FC = () => {
             <WalletIcon className="h-40 w-40" />
           </div>
           <div className="flex items-center justify-between">
-            <p className="text-sm font-medium opacity-90">Available balance</p>
+            <div className="flex items-center gap-2">
+              <p className="text-sm font-medium opacity-90">Available balance</p>
+              <button
+                onClick={toggleHidden}
+                aria-label={hidden ? 'Show balance' : 'Hide balance'}
+                title={hidden ? 'Show balance' : 'Hide balance'}
+                className="text-white/70 hover:text-white transition-colors"
+              >
+                {hidden ? <EyeIcon className="h-4 w-4" /> : <EyeSlashIcon className="h-4 w-4" />}
+              </button>
+            </div>
             <span className="inline-flex items-center gap-1 text-[10px] font-bold bg-white/20 px-2 py-0.5 rounded-full uppercase tracking-wide">
               <LockIcon className="h-3 w-3" /> USDT
             </span>
           </div>
-          <p className="text-4xl font-extrabold tracking-tight mt-1 tabular-nums">{format(balance)}</p>
-          {code !== 'USDT' && code !== 'USD' && (
+          <p className="text-4xl font-extrabold tracking-tight mt-1 tabular-nums">{money(balance)}</p>
+          {!hidden && code !== 'USDT' && code !== 'USD' && (
             <p className="text-xs text-white/70 mt-1">≈ {usdt(balance)} USDT</p>
           )}
           <div className="grid grid-cols-2 gap-3 mt-6">
@@ -90,6 +165,33 @@ const WalletScreen: React.FC = () => {
             </button>
           </div>
         </div>
+
+        {/* At-a-glance stats */}
+        <div className="grid grid-cols-3 gap-3 mt-4">
+          <StatTile icon={<TicketIcon className="h-5 w-5" />} label="In play" value={money(inPlay)} hint="Stakes on open bets" />
+          <StatTile icon={<ClockIcon className="h-5 w-5" />} label="Withdrawing" value={money(pendingWithdrawal)} hint="Withdrawals pending review" />
+          <StatTile icon={<ChevronUpIcon className="h-5 w-5" />} label="Deposited" value={money(totalDeposited)} hint="Lifetime deposits" />
+        </div>
+
+        {/* Withdrawal requests */}
+        {withdrawals.length > 0 && (
+          <div className="mt-5">
+            <h2 className="text-lg font-bold mb-3">Withdrawal requests</h2>
+            <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-2 sm:p-4">
+              {withdrawals.slice(0, 5).map(w => (
+                <div key={w.id} className="flex justify-between items-center gap-3 py-3 border-b border-gray-100 dark:border-neutral-border last:border-b-0">
+                  <div className="min-w-0">
+                    <p className="font-semibold text-sm tabular-nums">{money(w.amount)}</p>
+                    <p className="text-xs text-gray-400 truncate">
+                      To <span className="font-mono">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span> · {new Date(w.createdDate).toLocaleString()}
+                    </p>
+                  </div>
+                  <WithdrawalStatusBadge status={w.status} />
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Accepted methods */}
         <div className="mt-5 bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-4">
@@ -109,20 +211,38 @@ const WalletScreen: React.FC = () => {
 
         {/* Transactions */}
         <div className="mt-6">
-          <h2 className="text-lg font-bold mb-3">Recent transactions</h2>
+          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-3">
+            <h2 className="text-lg font-bold">Recent transactions</h2>
+            <div className="flex gap-1.5 overflow-x-auto scrollbar-none py-0.5">
+              {TX_FILTERS.map(f => (
+                <button
+                  key={f.key}
+                  onClick={() => setFilter(f.key)}
+                  className={`px-3 py-1 text-xs font-bold rounded-full whitespace-nowrap border transition-colors ${
+                    txFilter === f.key
+                      ? 'bg-primary border-primary text-white'
+                      : 'bg-white dark:bg-neutral-dark-gray border-gray-200 dark:border-neutral-border text-gray-500 dark:text-gray-400 hover:border-primary hover:text-primary'
+                  }`}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          </div>
           <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-2 sm:p-4">
-            {transactions.length > 0 ? (
+            {filteredTx.length > 0 ? (
               <>
-                {transactions.slice(0, visibleTx).map(t => (
+                {filteredTx.slice(0, visibleTx).map(t => (
                   <TransactionRow
                     key={t.id}
                     transaction={t}
+                    hidden={hidden}
                     onDownloadFail={() => addToast('Could not generate the receipt. Please try again.', 'error')}
                   />
                 ))}
-                {transactions.length > visibleTx && (
+                {filteredTx.length > visibleTx && (
                   <button onClick={() => setVisibleTx(v => v + 8)} className="w-full mt-2 py-2 text-sm font-semibold text-primary hover:underline">
-                    Show more ({transactions.length - visibleTx})
+                    Show more ({filteredTx.length - visibleTx})
                   </button>
                 )}
               </>
@@ -131,15 +251,28 @@ const WalletScreen: React.FC = () => {
                 <div className="h-12 w-12 rounded-full bg-gray-100 dark:bg-neutral-dark flex items-center justify-center mx-auto mb-3">
                   <WalletIcon className="h-6 w-6 text-gray-400" />
                 </div>
-                <p className="font-semibold text-gray-600 dark:text-gray-300">No transactions yet</p>
-                <p className="text-sm">Top up your wallet to get started.</p>
+                {txFilter === 'all' ? (
+                  <>
+                    <p className="font-semibold text-gray-600 dark:text-gray-300">No transactions yet</p>
+                    <p className="text-sm">Top up your wallet to get started.</p>
+                  </>
+                ) : (
+                  <p className="font-semibold text-gray-600 dark:text-gray-300">No {TX_FILTERS.find(f => f.key === txFilter)!.label.toLowerCase()} yet</p>
+                )}
               </div>
             )}
           </div>
         </div>
       </div>
       {isTopUpOpen && <TopUpModal onClose={() => setTopUpOpen(false)} onTopUp={topUpWallet} addToast={addToast} />}
-      {isWithdrawOpen && <WithdrawModal onClose={() => setWithdrawOpen(false)} onWithdraw={withdrawFromWallet} addToast={addToast} balance={balance} />}
+      {isWithdrawOpen && (
+        <WithdrawModal
+          onClose={() => { setWithdrawOpen(false); loadWithdrawals(); }}
+          onWithdraw={withdrawFromWallet}
+          addToast={addToast}
+          balance={balance}
+        />
+      )}
     </>
   );
 };
