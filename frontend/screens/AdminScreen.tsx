@@ -487,6 +487,22 @@ const AdminScreen: React.FC = () => {
     }
   };
 
+  // NOWPayments mass-payout CSV (Currency,Address,Memo,Amount) built from the
+  // pending withdrawal queue, ready to upload on their dashboard. Memo stays
+  // empty (TRC-20 has none); amount is in USDT units.
+  const exportPayoutsCsv = () => {
+    if (withdrawals.length === 0) return;
+    const rows = withdrawals.map(wd => `usdttrc20,${wd.address},,${(wd.amount / 100).toFixed(2)}`);
+    const csv = ['Currency,Address,Memo,Amount', ...rows].join('\n');
+    const url = URL.createObjectURL(new Blob([csv], { type: 'text/csv' }));
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `raphbet_payouts_${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    showToast(`Exported ${withdrawals.length} pending payout${withdrawals.length === 1 ? '' : 's'} for NOWPayments.`);
+  };
+
   const handleDeleteUser = async () => {
     if (!selectedUser) return;
     setModalBusy(true);
@@ -1386,11 +1402,19 @@ const AdminScreen: React.FC = () => {
         {tab === 'withdrawals' && (
           <div className="space-y-4">
             {withdrawals.length > 0 && (
-              <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-2xl p-4 flex items-center gap-3">
+              <div className="bg-amber-50 dark:bg-amber-900/10 border border-amber-200 dark:border-amber-800/30 rounded-2xl p-4 flex flex-wrap items-center gap-3">
                 <ShieldAlert className="h-5 w-5 text-amber-600 shrink-0" />
-                <p className="text-xs font-bold text-amber-700 dark:text-amber-500">
-                  {withdrawals.length} withdrawal{withdrawals.length > 1 ? 's' : ''} pending your review. Verify on-chain before approving.
+                <p className="text-xs font-bold text-amber-700 dark:text-amber-500 flex-1 min-w-[200px]">
+                  {withdrawals.length} withdrawal{withdrawals.length > 1 ? 's' : ''} pending your review. Send the funds first, then approve.
                 </p>
+                <button
+                  onClick={exportPayoutsCsv}
+                  title="Download a NOWPayments mass-payout CSV of all pending withdrawals"
+                  className="shrink-0 flex items-center gap-1.5 text-[10px] font-bold text-white bg-primary hover:bg-primary-dark px-3.5 py-2 rounded-xl transition-colors uppercase tracking-wider"
+                >
+                  <Download className="w-3.5 h-3.5" />
+                  Export CSV for NOWPayments
+                </button>
               </div>
             )}
             <div className="overflow-x-auto bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl shadow-sm">
