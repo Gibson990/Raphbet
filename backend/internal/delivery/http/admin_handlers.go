@@ -109,7 +109,16 @@ func (h *Handlers) adminRejectWithdrawal(w http.ResponseWriter, r *http.Request)
 	if !h.requireAdmin(w, r) {
 		return
 	}
-	wd, err := h.betting.RejectWithdrawal(r.PathValue("id"), "rejected by admin")
+	// Optional reason, shown to the player ("payment failed — please resubmit
+	// with a valid address"). The body may be absent for legacy callers.
+	var req struct {
+		Reason string `json:"reason"`
+	}
+	_ = json.NewDecoder(r.Body).Decode(&req)
+	if strings.TrimSpace(req.Reason) == "" {
+		req.Reason = "rejected by admin"
+	}
+	wd, err := h.betting.RejectWithdrawal(r.PathValue("id"), strings.TrimSpace(req.Reason))
 	if err != nil {
 		bettingError(w, err)
 		return

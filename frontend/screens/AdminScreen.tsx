@@ -370,6 +370,8 @@ const AdminScreen: React.FC = () => {
   const [modalBusy, setModalBusy] = useState(false);
   const [modalTab, setModalTab] = useState<'overview' | 'bets' | 'transactions'>('overview');
   const [confirmingDelete, setConfirmingDelete] = useState(false);
+  // Inline reject flow on the withdrawals table: which row + the reason text.
+  const [rejecting, setRejecting] = useState<{ id: string; reason: string } | null>(null);
 
   // Chart range — kept in a ref too so the 20s poll refetches the same window
   // without re-creating `load` (which would restart the polling effect).
@@ -435,13 +437,14 @@ const AdminScreen: React.FC = () => {
     return () => clearInterval(t);
   }, [authed, load]);
 
-  const decide = async (id: string, action: 'approve' | 'reject') => {
+  const decide = async (id: string, action: 'approve' | 'reject', reason?: string) => {
     try {
-      await (action === 'approve' ? approveWithdrawal('', id) : rejectWithdrawal('', id));
-      showToast(`Withdrawal ${action}d successfully.`);
+      await (action === 'approve' ? approveWithdrawal('', id) : rejectWithdrawal('', id, reason));
+      showToast(action === 'approve' ? 'Withdrawal approved.' : 'Withdrawal rejected — funds refunded to the player.');
+      setRejecting(null);
       await load();
-    } catch {
-      showToast('Failed to process withdrawal.', 'error');
+    } catch (err) {
+      showToast(err instanceof Error ? err.message : 'Failed to process withdrawal.', 'error');
     }
   };
 
@@ -1455,8 +1458,25 @@ const AdminScreen: React.FC = () => {
                       <td className="px-5 py-4 font-mono text-[11px] select-all break-all max-w-[240px]">{wd.address}</td>
                       <td className="px-5 py-4 text-right font-bold tabular-nums">{formatCurrency(wd.amount)}</td>
                       <td className="px-5 py-4 text-center whitespace-nowrap">
-                        <button onClick={() => decide(wd.id, 'approve')} className="bg-success text-white hover:bg-success-dark px-3 py-1.5 rounded-lg text-[10px] font-bold mr-2.5 shadow-sm transition-colors">Approve</button>
-                        <button onClick={() => decide(wd.id, 'reject')} className="bg-transparent border border-gray-200 dark:border-neutral-border hover:border-danger hover:text-danger px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all">Reject</button>
+                        {rejecting?.id === wd.id ? (
+                          <div className="flex items-center gap-2 justify-center">
+                            <input
+                              autoFocus
+                              value={rejecting.reason}
+                              onChange={e => setRejecting({ id: wd.id, reason: e.target.value })}
+                              onKeyDown={e => e.key === 'Enter' && decide(wd.id, 'reject', rejecting.reason)}
+                              placeholder="Reason shown to the player (e.g. payment failed — resubmit address)"
+                              className="w-72 px-3 py-1.5 text-[11px] border border-danger/40 rounded-lg bg-transparent focus:outline-none focus:border-danger dark:text-white"
+                            />
+                            <button onClick={() => decide(wd.id, 'reject', rejecting.reason)} className="bg-danger text-white px-3 py-1.5 rounded-lg text-[10px] font-bold shadow-sm transition-colors hover:opacity-90">Refund &amp; Reject</button>
+                            <button onClick={() => setRejecting(null)} className="text-gray-400 hover:text-gray-600 px-2 py-1.5 text-[10px] font-bold">Cancel</button>
+                          </div>
+                        ) : (
+                          <>
+                            <button onClick={() => decide(wd.id, 'approve')} className="bg-success text-white hover:bg-success-dark px-3 py-1.5 rounded-lg text-[10px] font-bold mr-2.5 shadow-sm transition-colors">Approve</button>
+                            <button onClick={() => setRejecting({ id: wd.id, reason: '' })} className="bg-transparent border border-gray-200 dark:border-neutral-border hover:border-danger hover:text-danger px-3 py-1.5 rounded-lg text-[10px] font-bold transition-all">Reject</button>
+                          </>
+                        )}
                       </td>
                     </tr>
                   ))}

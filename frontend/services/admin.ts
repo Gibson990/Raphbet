@@ -133,8 +133,10 @@ export const approveWithdrawal = (key: string, id: string) =>
 // those — guaranteeing a withdrawal can never appear in two payout batches.
 export const exportWithdrawals = (key: string) =>
   adminPost<AdminWithdrawal[]>('/api/admin/withdrawals/export', key);
-export const rejectWithdrawal = (key: string, id: string) =>
-  adminPost<unknown>(`/api/admin/withdrawals/${id}/reject`, key);
+// reason is shown to the player on their wallet screen (e.g. "payment failed
+// — invalid address; funds refunded, please resubmit").
+export const rejectWithdrawal = (key: string, id: string, reason?: string) =>
+  adminPost<unknown>(`/api/admin/withdrawals/${id}/reject`, key, { reason: reason ?? '' });
 
 // Returns the full wallet (balance + transactions) after adjustment
 export const adjustUserBalance = (key: string, deviceId: string, amount: number, description: string) =>

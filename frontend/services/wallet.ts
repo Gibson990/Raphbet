@@ -64,6 +64,7 @@ export interface Withdrawal {
   address: string;
   status: 'PENDING' | 'PAID' | 'REJECTED';
   createdDate: string;
+  note?: string; // rejection reason / payout reference, shown to the player
 }
 
 export const requestWithdrawal = (amount: number, address: string) =>

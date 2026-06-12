@@ -181,14 +181,24 @@ const WalletScreen: React.FC = () => {
             <h2 className="text-lg font-bold mb-3">Withdrawal requests</h2>
             <div className="bg-white dark:bg-neutral-dark-gray border border-gray-200 dark:border-neutral-border rounded-2xl p-2 sm:p-4">
               {withdrawals.slice(0, 5).map(w => (
-                <div key={w.id} className="flex justify-between items-center gap-3 py-3 border-b border-gray-100 dark:border-neutral-border last:border-b-0">
-                  <div className="min-w-0">
-                    <p className="font-semibold text-sm tabular-nums">{money(w.amount)}</p>
-                    <p className="text-xs text-gray-400 truncate">
-                      To <span className="font-mono">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span> · {new Date(w.createdDate).toLocaleString()}
-                    </p>
+                <div key={w.id} className="py-3 border-b border-gray-100 dark:border-neutral-border last:border-b-0">
+                  <div className="flex justify-between items-center gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-sm tabular-nums">{money(w.amount)}</p>
+                      <p className="text-xs text-gray-400 truncate">
+                        To <span className="font-mono">{w.address.slice(0, 6)}…{w.address.slice(-4)}</span> · {new Date(w.createdDate).toLocaleString()}
+                      </p>
+                    </div>
+                    <WithdrawalStatusBadge status={w.status} />
                   </div>
-                  <WithdrawalStatusBadge status={w.status} />
+                  {w.status === 'REJECTED' && (
+                    <div className="mt-2 text-xs bg-danger/5 border border-danger/20 rounded-lg px-3 py-2 text-gray-600 dark:text-gray-300">
+                      {w.note && w.note !== 'rejected by admin' && <p className="font-semibold text-danger">{w.note}</p>}
+                      <p className={w.note && w.note !== 'rejected by admin' ? 'mt-0.5' : ''}>
+                        The funds were returned to your balance — you can submit a new withdrawal request.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ))}
             </div>
