@@ -31,12 +31,13 @@ const slides: Slide[] = [
     scrollTo: 'match-board',
   },
   {
-    title: 'Welcome bonus',
-    subtitle: 'Top up your wallet and get started today.',
-    cta: 'Claim now',
+    // Promotes the real accumulator win-boost ladder (2.5% at 2 legs → 100% at 20).
+    title: 'Acca boosts up to 100%',
+    subtitle: 'Add legs to your accumulator — we boost winning bets up to double.',
+    cta: 'Build an acca',
     image: img('1459865264687-595d652de67e'),
     fallback: 'from-[#16A34A] to-[#166534]',
-    to: '/wallet',
+    scrollTo: 'match-board',
   },
 ];
 

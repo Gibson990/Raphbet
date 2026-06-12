@@ -23,6 +23,9 @@ const HomeScreen: React.FC = () => {
   const [matchesForLeague, setMatchesForLeague] = useState<Match[]>([]);
   const [standingsForLeague, setStandingsForLeague] = useState<Standing[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [loadError, setLoadError] = useState(false);
+  const [retryKey, setRetryKey] = useState(0);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [activeTab, setActiveTab] = useState<'matches' | 'standings'>('matches');
   const [isBetSlipOpen, setIsBetSlipOpen] = useState(false);
   const [placed, setPlaced] = useState<BetPlacedInfo | null>(null);
@@ -55,16 +58,29 @@ const HomeScreen: React.FC = () => {
     }
   }, [betSlip.length]);
 
-  // Load the list of leagues once on mount and select the first one.
+  // Re-runs the league + match effects after a failed load (or a manual refresh).
+  const retryLoad = () => {
+    setLoadError(false);
+    setIsLoading(true);
+    setRetryKey(k => k + 1);
+  };
+
+  // Load the list of leagues on mount (and on retry) and select the first one.
   useEffect(() => {
     let active = true;
-    fetchLeagues().then(data => {
-      if (!active) return;
-      setLeagues(data);
-      setSelectedLeagueId(prev => prev || data[0]?.id || '');
-    });
+    fetchLeagues()
+      .then(data => {
+        if (!active) return;
+        setLeagues(data);
+        setSelectedLeagueId(prev => prev || data[0]?.id || '');
+        if (data.length === 0) setIsLoading(false); // nothing further to load
+      })
+      .catch(() => {
+        // Without an error state the board would show skeletons forever.
+        if (active) { setLoadError(true); setIsLoading(false); }
+      });
     return () => { active = false; };
-  }, []);
+  }, [retryKey]);
 
   // Load matches + standings whenever the selected league changes. Matches are
   // polled every 30s so live scores and in-play odds stay fresh.
@@ -73,14 +89,19 @@ const HomeScreen: React.FC = () => {
     let active = true;
 
     const loadStandings = () => fetchStandings(selectedLeagueId).then(s => { if (active) setStandingsForLeague(s); });
-    const loadMatches = () => fetchMatches(selectedLeagueId).then(m => { if (active) setMatchesForLeague(m); });
+    const loadMatches = () => fetchMatches(selectedLeagueId).then(m => {
+      if (active) { setMatchesForLeague(m); setLastUpdated(new Date()); setLoadError(false); }
+    });
 
     setIsLoading(true);
-    Promise.all([loadMatches(), loadStandings()]).finally(() => { if (active) setIsLoading(false); });
+    Promise.all([loadMatches(), loadStandings()])
+      .catch(() => { if (active) setLoadError(true); })
+      .finally(() => { if (active) setIsLoading(false); });
 
-    const interval = setInterval(loadMatches, 30_000);
+    // A transient poll failure keeps showing the last good data — no error flash.
+    const interval = setInterval(() => loadMatches().catch(() => {}), 30_000);
     return () => { active = false; clearInterval(interval); };
-  }, [selectedLeagueId]);
+  }, [selectedLeagueId, retryKey]);
 
   const selectedLeague = useMemo(() => leagues.find(l => l.id === selectedLeagueId), [leagues, selectedLeagueId]);
 
@@ -182,10 +203,20 @@ const HomeScreen: React.FC = () => {
             ) : (
               <SoccerBallIcon className="h-9 w-9 text-gray-400" />
             )}
-            <div>
-              <h1 className="text-xl sm:text-2xl font-extrabold leading-tight">{selectedLeague?.name || 'Football'}</h1>
+            <div className="min-w-0">
+              <h1 className="text-xl sm:text-2xl font-extrabold leading-tight truncate">{selectedLeague?.name || 'Football'}</h1>
               <p className="text-gray-400 text-xs">{selectedLeague?.country}</p>
             </div>
+            <button
+              onClick={retryLoad}
+              title="Refresh odds"
+              className="ml-auto shrink-0 flex items-center gap-1.5 text-[11px] font-medium text-gray-400 hover:text-primary transition-colors"
+            >
+              <svg className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+              </svg>
+              <span className="hidden sm:inline">{lastUpdated ? `Updated ${lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}` : 'Refresh'}</span>
+            </button>
           </div>
 
           <div className="mt-2">
@@ -236,7 +267,7 @@ const HomeScreen: React.FC = () => {
                     const isActive = statusFilter === filter;
                     const labelMap = {
                       ALL: 'All Matches',
-                      LIVE: '🔴 Live',
+                      LIVE: 'Live',
                       UPCOMING: 'Upcoming',
                       FINISHED: 'Finished',
                     };
@@ -244,12 +275,18 @@ const HomeScreen: React.FC = () => {
                       <button
                         key={filter}
                         onClick={() => setStatusFilter(filter)}
-                        className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all whitespace-nowrap border ${
+                        className={`px-3.5 py-1.5 text-xs font-bold rounded-full transition-all whitespace-nowrap border inline-flex items-center gap-1.5 ${
                           isActive
                             ? 'bg-primary border-primary text-white shadow-sm shadow-primary/25 scale-[1.03]'
                             : 'bg-white dark:bg-neutral-dark-gray border-gray-200 dark:border-neutral-border text-gray-500 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500 hover:scale-[1.02]'
                         }`}
                       >
+                        {filter === 'LIVE' && (
+                          <span className="relative flex h-1.5 w-1.5">
+                            <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${isActive ? 'bg-white' : 'bg-live'}`} />
+                            <span className={`relative inline-flex rounded-full h-1.5 w-1.5 ${isActive ? 'bg-white' : 'bg-live'}`} />
+                          </span>
+                        )}
                         {labelMap[filter]}
                       </button>
                     );
@@ -259,7 +296,23 @@ const HomeScreen: React.FC = () => {
             )}
 
             <div className="mt-4">
-              {isLoading ? (
+              {loadError && matchesForLeague.length === 0 ? (
+                <div className="w-full text-center py-14 bg-gray-50 dark:bg-neutral-dark border border-dashed border-gray-200 dark:border-neutral-border rounded-2xl">
+                  <div className="h-12 w-12 rounded-full bg-danger/10 flex items-center justify-center mx-auto mb-3">
+                    <svg className="h-6 w-6 text-danger" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="2">
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126zM12 15.75h.007v.008H12v-.008z" />
+                    </svg>
+                  </div>
+                  <p className="font-bold text-gray-600 dark:text-gray-300">Can't reach the server</p>
+                  <p className="text-sm text-gray-400 mt-1">Check your connection and try again.</p>
+                  <button
+                    onClick={retryLoad}
+                    className="mt-4 bg-primary hover:bg-primary-dark text-white text-sm font-bold px-5 py-2 rounded-xl transition-colors"
+                  >
+                    Retry
+                  </button>
+                </div>
+              ) : isLoading ? (
                 activeTab === 'standings'
                   ? <RowsSkeleton rows={8} />
                   : <MatchListSkeleton />

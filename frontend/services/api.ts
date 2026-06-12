@@ -15,14 +15,15 @@ async function getJSON<T>(path: string): Promise<T> {
 /**
  * Live football data — leagues, fixtures, live scores and standings — all served
  * by the backend (which proxies api-football). There is no hardcoded data on the
- * client: on error the calls resolve to empty lists and the UI shows empty states.
+ * client. Failures propagate to the caller so the UI can show an error + retry
+ * instead of a misleading empty state.
  */
 export async function fetchLeagues(): Promise<League[]> {
   try {
     return await getJSON<League[]>('/api/leagues');
   } catch (err) {
     console.warn('fetchLeagues failed:', err);
-    return [];
+    throw err;
   }
 }
 
@@ -31,7 +32,7 @@ export async function fetchMatches(leagueId: string): Promise<Match[]> {
     return await getJSON<Match[]>(`/api/leagues/${leagueId}/matches`);
   } catch (err) {
     console.warn('fetchMatches failed:', err);
-    return [];
+    throw err;
   }
 }
 
@@ -40,6 +41,6 @@ export async function fetchStandings(leagueId: string): Promise<Standing[]> {
     return await getJSON<Standing[]>(`/api/leagues/${leagueId}/standings`);
   } catch (err) {
     console.warn('fetchStandings failed:', err);
-    return [];
+    throw err;
   }
 }

@@ -43,9 +43,20 @@ const TeamRow: React.FC<{ name: string; logo: string; score?: number; dim?: bool
   </div>
 );
 
+// Countdown shown on matches kicking off within 24h ("in 2h 15m"). Refreshes
+// naturally with the 30s match poll, so no dedicated timer is needed.
+const startsIn = (date: string): string | null => {
+  const ms = new Date(date).getTime() - Date.now();
+  if (ms <= 0 || ms > 24 * 36e5) return null;
+  const h = Math.floor(ms / 36e5);
+  const m = Math.floor((ms % 36e5) / 6e4);
+  return h > 0 ? `in ${h}h ${m}m` : `in ${Math.max(m, 1)}m`;
+};
+
 export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelectOdd, onOpenMarkets, selectedMarket }) => {
   const isLive = match.status === 'LIVE';
   const isFinished = match.status === 'FINISHED';
+  const countdown = !isLive && !isFinished ? startsIn(match.date) : null;
   // Count betting options beyond the three 1X2 prices shown on the card.
   const extraMarkets = (match.markets ?? []).reduce((n, m) => n + m.outcomes.length, 0) - 3;
 
@@ -70,6 +81,7 @@ export const MatchCard: React.FC<MatchCardProps> = ({ match, onSelectOdd, onOpen
         ) : (
           <span className="text-[11px] font-medium text-gray-400">
             {new Date(match.date).toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' })} · {new Date(match.date).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            {countdown && <span className="ml-1.5 font-bold text-primary">{countdown}</span>}
           </span>
         )}
       </div>
