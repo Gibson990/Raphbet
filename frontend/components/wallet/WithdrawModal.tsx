@@ -12,6 +12,29 @@ interface WithdrawModalProps {
     balance: number; // USD cents
 }
 
+// Detects which network an address belongs to from its format, like wallets
+// do. We only pay out USDT on TRON, so any other recognised network renders
+// as a labeled warning ("that's a Bitcoin address") instead of a generic
+// validation error.
+interface DetectedNetwork {
+    name: string;    // e.g. "Bitcoin"
+    symbol: string;  // badge glyph
+    bg: string;      // badge color
+    accepted: boolean;
+}
+
+const NETWORK_PATTERNS: { re: RegExp; net: DetectedNetwork }[] = [
+    { re: /^T[1-9A-HJ-NP-Za-km-z]{33}$/, net: { name: 'USDT · TRON (TRC-20)', symbol: '₮', bg: '#26A17B', accepted: true } },
+    { re: /^(bc1[a-z0-9]{25,59}|[13][1-9A-HJ-NP-Za-km-z]{25,34})$/, net: { name: 'Bitcoin', symbol: '₿', bg: '#F7931A', accepted: false } },
+    { re: /^0x[a-fA-F0-9]{40}$/, net: { name: 'Ethereum / BSC (0x…)', symbol: 'Ξ', bg: '#627EEA', accepted: false } },
+    { re: /^(ltc1[a-z0-9]{25,59}|[LM][1-9A-HJ-NP-Za-km-z]{26,33})$/, net: { name: 'Litecoin', symbol: 'Ł', bg: '#345D9D', accepted: false } },
+    { re: /^r[1-9A-HJ-NP-Za-km-z]{24,34}$/, net: { name: 'XRP', symbol: 'X', bg: '#23292F', accepted: false } },
+    { re: /^D[1-9A-HJ-NP-Za-km-z]{25,33}$/, net: { name: 'Dogecoin', symbol: 'Ð', bg: '#C2A633', accepted: false } },
+];
+
+const detectNetwork = (address: string): DetectedNetwork | null =>
+    NETWORK_PATTERNS.find(p => p.re.test(address))?.net ?? null;
+
 const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addToast, balance }) => {
     const [amount, setAmount] = useState(0); // USD dollars
     const [address, setAddress] = useState('');
@@ -29,9 +52,12 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
 
     // TRON (TRC-20) addresses are base58, start with "T", 34 chars. A wrong
     // address means lost funds, so block submission on an obvious mismatch.
+    // detectNetwork names the network a non-TRON address belongs to so the
+    // error explains itself ("that's a Bitcoin address").
     const trimmedAddress = address.trim();
-    const addressValid = /^T[1-9A-HJ-NP-Za-km-z]{33}$/.test(trimmedAddress);
-    const showAddressError = trimmedAddress.length > 0 && !addressValid;
+    const detected = trimmedAddress ? detectNetwork(trimmedAddress) : null;
+    const addressValid = !!detected?.accepted;
+    const showAddressError = trimmedAddress.length > 0 && !detected;
 
     const setPercent = (pct: number) => {
         const target = Math.floor((maxUsd * pct) / 100 * 100) / 100; // 2dp, never above max
@@ -104,8 +130,30 @@ const WithdrawModal: React.FC<WithdrawModalProps> = ({ onClose, onWithdraw, addT
                         value={address}
                         onChange={(e) => setAddress(e.target.value)}
                         placeholder="T..."
-                        className={`w-full px-4 py-2 border rounded-md focus:ring-primary focus:border-primary bg-transparent font-mono text-sm ${showAddressError ? 'border-danger' : 'border-gray-300 dark:border-neutral-border'}`}
+                        className={`w-full px-4 py-2 border rounded-md focus:ring-primary focus:border-primary bg-transparent font-mono text-sm ${
+                            addressValid ? 'border-success' : (showAddressError || (detected && !detected.accepted)) ? 'border-danger' : 'border-gray-300 dark:border-neutral-border'
+                        }`}
                     />
+                    {detected && (
+                        <div className={`mt-2 flex items-start gap-2.5 rounded-lg border p-2.5 ${
+                            detected.accepted ? 'border-success/30 bg-success/5' : 'border-danger/30 bg-danger/5'
+                        }`}>
+                            <span
+                                className="inline-flex items-center justify-center h-7 w-7 rounded-lg text-white font-extrabold text-sm shrink-0"
+                                style={{ background: detected.bg }}
+                            >
+                                {detected.symbol}
+                            </span>
+                            {detected.accepted ? (
+                                <p className="text-xs font-semibold text-success pt-1.5">{detected.name} — address looks valid ✓</p>
+                            ) : (
+                                <p className="text-xs text-danger">
+                                    <span className="font-bold">This is a {detected.name} address.</span>{' '}
+                                    We send withdrawals as USDT on TRON (TRC-20) only — funds sent to this address would be lost.
+                                </p>
+                            )}
+                        </div>
+                    )}
                     {showAddressError && (
                         <p className="text-xs text-danger mt-1">That doesn't look like a TRC-20 address — it should start with "T" and be 34 characters.</p>
                     )}
