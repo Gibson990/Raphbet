@@ -51,6 +51,7 @@ import {
   fetchAllTickets, adminReplyTicket, adminCloseTicket,
   type SupportTicket,
 } from '../services/support';
+import { downloadBetSlip } from '../services/receipt';
 
 // ─── KPI Stat Card (redesigned) ───────────────────────────────────────────────
 const StatCard: React.FC<{
@@ -620,49 +621,23 @@ const AdminScreen: React.FC = () => {
     }
   };
 
-  const downloadBetReceipt = (bet: AdminBet) => {
-    try {
-      const { jsPDF } = (window as any).jspdf;
-      const doc = new jsPDF({ orientation: 'p', unit: 'mm', format: 'a6' });
-      const primary = [255, 107, 53];
-      const text = [30, 41, 59];
-      doc.setFillColor(primary[0], primary[1], primary[2]);
-      doc.rect(0, 0, 105, 15, 'F');
-      doc.setTextColor(255, 255, 255);
-      doc.setFont('Helvetica', 'bold');
-      doc.setFontSize(14);
-      doc.text('RAPHBET BETTING RECEIPT', 52.5, 9.5, { align: 'center' });
-      doc.setTextColor(text[0], text[1], text[2]);
-      doc.setFontSize(8); doc.setFont('Helvetica', 'normal');
-      doc.text(`Receipt ID: ${bet.id}`, 8, 24);
-      doc.text(`Date: ${new Date(bet.placedDate).toLocaleString()}`, 8, 29);
-      doc.text(`Player: ${bet.deviceId.slice(0, 18)}...`, 8, 34);
-      doc.line(8, 38, 97, 38);
-      doc.setFont('Helvetica', 'bold'); doc.setFontSize(9);
-      doc.text('BET SELECTION', 8, 44);
-      doc.setFontSize(9.5); doc.text(bet.match, 8, 52);
-      doc.setFont('Helvetica', 'normal'); doc.setFontSize(8);
-      doc.text(`Market: ${bet.market}`, 8, 58);
-      doc.setFillColor(241, 245, 249); doc.rect(8, 64, 89, 34, 'F');
-      doc.text('Stake:', 12, 71); doc.text('Odds:', 12, 77); doc.text('Status:', 12, 83); doc.text('Payout:', 12, 89);
-      doc.setFont('Helvetica', 'bold');
-      doc.text(formatCurrency(bet.wager), 60, 71);
-      doc.text(bet.odds.toFixed(2), 60, 77);
-      if (bet.status === 'WON') doc.setTextColor(22, 163, 74);
-      else if (bet.status === 'LOST') doc.setTextColor(220, 38, 38);
-      else doc.setTextColor(245, 158, 11);
-      doc.text(bet.status, 60, 83);
-      doc.setTextColor(text[0], text[1], text[2]);
-      doc.text(bet.payout ? formatCurrency(bet.payout) : '—', 60, 89);
-      doc.setFont('Helvetica', 'normal'); doc.setFontSize(7); doc.setTextColor(148, 163, 184);
-      doc.text(`HASH: ${btoa(bet.id + bet.wager).slice(0, 24)}`, 52.5, 111, { align: 'center' });
-      doc.setFontSize(8.5); doc.setFont('Helvetica', 'bold'); doc.setTextColor(primary[0], primary[1], primary[2]);
-      doc.text('Thank you for betting with Raphbet!', 52.5, 120, { align: 'center' });
-      doc.save(`Raphbet_Receipt_${bet.id.slice(0, 8)}.pdf`);
-      showToast('PDF receipt downloaded.');
-    } catch {
-      showToast('PDF library not loaded.', 'error');
-    }
+  // Reuses the player-facing receipt design (real logo, branded layout) by
+  // mapping the flat admin bet row onto the PlacedBet shape it expects.
+  const downloadBetReceipt = async (bet: AdminBet) => {
+    const playerLabel = users.find(u => u.deviceId === bet.deviceId)?.email ?? `${bet.deviceId.slice(0, 14)}…`;
+    const ok = await downloadBetSlip(
+      {
+        id: bet.id,
+        placedDate: bet.placedDate,
+        status: bet.status,
+        wager: bet.wager,
+        payout: bet.payout,
+        selection: { matchId: '', matchDescription: bet.match, marketLabel: bet.market, market: '', odds: bet.odds },
+      },
+      formatCurrency,
+      playerLabel,
+    );
+    showToast(ok ? 'PDF receipt downloaded.' : 'PDF library not loaded.', ok ? 'success' : 'error');
   };
 
   const downloadOverallReport = () => {

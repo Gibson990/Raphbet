@@ -30,8 +30,8 @@ const BetHistoryCard: React.FC<{ bet: PlacedBet; playerName?: string; onDownload
   const { format } = useCurrency();
   const [cashingOut, setCashingOut] = useState(false);
 
-  const handleDownload = () => {
-    if (!downloadBetSlip(bet, format, playerName)) onDownloadFail();
+  const handleDownload = async () => {
+    if (!(await downloadBetSlip(bet, format, playerName))) onDownloadFail();
   };
 
   const doCashOut = async () => {

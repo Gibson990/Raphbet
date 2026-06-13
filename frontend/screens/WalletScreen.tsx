@@ -53,7 +53,7 @@ const StatTile: React.FC<{ icon: React.ReactNode; label: string; value: string; 
 const TransactionRow: React.FC<{ transaction: Transaction; hidden: boolean; playerName?: string; onDownloadFail: () => void }> = ({ transaction, hidden, playerName, onDownloadFail }) => {
   const { format } = useCurrency();
   const isCredit = transaction.type === 'Payout' || transaction.type === 'Top-up';
-  const download = () => { if (!downloadTransactionReceipt(transaction, format, playerName)) onDownloadFail(); };
+  const download = async () => { if (!(await downloadTransactionReceipt(transaction, format, playerName))) onDownloadFail(); };
   return (
     <div className="flex justify-between items-center py-3 border-b border-gray-100 dark:border-neutral-border last:border-b-0 group">
       <div className="flex items-center gap-3 min-w-0">
