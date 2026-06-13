@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { useVirtualWallet } from './hooks/useVirtualWallet';
 import { useDarkMode } from './hooks/useDarkMode';
@@ -28,10 +28,17 @@ export type ToastMessage = {
 
 export default function App() {
   const [isDarkMode, toggleDarkMode] = useDarkMode();
-  const { isLoggedIn, isVerified, isAdmin, completeKyc } = useAuth();
+  const { user, isLoggedIn, isVerified, isAdmin, completeKyc } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
   const wallet = useVirtualWallet();
+
+  // Refetch the wallet the moment the signed-in identity resolves. Firebase
+  // restores sessions asynchronously, so the wallet's initial fetch goes out
+  // as a guest (device id only) — without this, the real balance would only
+  // appear at the next 20s poll after login or a page refresh.
+  const { refresh: refreshWallet } = wallet;
+  useEffect(() => { refreshWallet(); }, [user?.uid, refreshWallet]);
 
   // After login: admins go to the dashboard; everyone else returns to the page
   // they originally tried to open (or home).

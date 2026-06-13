@@ -37,6 +37,19 @@ export function useVirtualWallet() {
     return () => clearInterval(interval);
   }, [refresh]);
 
+  // Refetch when the tab regains focus — most importantly right after the
+  // player returns from the hosted crypto checkout, so a confirmed deposit
+  // shows up immediately instead of waiting out the poll interval.
+  useEffect(() => {
+    const onVisible = () => { if (!document.hidden) refresh(); };
+    window.addEventListener('focus', onVisible);
+    document.addEventListener('visibilitychange', onVisible);
+    return () => {
+      window.removeEventListener('focus', onVisible);
+      document.removeEventListener('visibilitychange', onVisible);
+    };
+  }, [refresh]);
+
   // ---- Bet slip (local draft) ----
   const addToBetSlip = useCallback((selection: Bet['selection']) => {
     setBetSlip((prev) => {
